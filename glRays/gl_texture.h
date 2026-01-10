@@ -7,7 +7,7 @@ class GLTexture
 	GLuint id;
 
 public:
-	GLTexture(int width, int height) : w(width), h(height) {}
+	GLTexture(int width, int height) : w(width), h(height), id(-1) {}
 
 	~GLTexture()
 	{

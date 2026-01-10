@@ -10,6 +10,7 @@
 
 const int WIDTH = 800, HEIGHT = 600;
 int window_width, window_height;
+int frame_count = 0;
 float delta_time = 0.0f;
 float last_frame = 0.0f;
 
@@ -28,6 +29,20 @@ static void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 	window_width = width;
 	window_height = height;
 	glViewport(0, 0, width, height);
+}
+
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	Camera* handler = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
+	if (handler)
+		handler->key_event(window, key, scancode, action, mods);
+}
+
+static void cursor_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	Camera* handler = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
+	if (handler)
+		handler->mouse_event(window, xpos, ypos);
 }
 
 int main()
@@ -113,21 +128,23 @@ int main()
 	SceneData scene_data = defaultScene();
 	glGenBuffers(1, &sphere_ubo);
 	glBindBuffer(GL_UNIFORM_BUFFER, sphere_ubo);
-	glBufferData(GL_UNIFORM_BUFFER, scene_data.size, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_UNIFORM_BUFFER, scene_data.size, scene_data.objects, GL_STATIC_DRAW);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-	glUniformBlockBinding(compute_shader.id, sphere_ubo, 1);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 1, sphere_ubo);
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, scene_data.size, scene_data.objects);
+	glUniformBlockBinding(compute_shader.id, sphere_ubo, 2);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 2, sphere_ubo);
+	//glBufferSubData(GL_UNIFORM_BUFFER, 0, scene_data.size, scene_data.objects);
 
 
 
 
 
-	// glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glfwSetErrorCallback(error_callback);
 	glfwSetWindowCloseCallback(window, window_close_callback);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetKeyCallback(window, key_callback);
+	glfwSetCursorPosCallback(window, cursor_callback);
 
 
 	// Keep track of these for input
@@ -136,14 +153,16 @@ int main()
 
 	// Main loop
 	while (!glfwWindowShouldClose(window)) {
+		glClear(GL_COLOR_BUFFER_BIT);
+
 		// Process input
 		{
 			float now = glfwGetTime();
 			delta_time = now - last_frame;
 			last_frame = now;
-			glfwPollEvents();
-			cam.processInput(window, delta_time);
+			cam.set_delta_time(delta_time);
 		}
+
 
 		// Show frame time
 		float now = glfwGetTime();
@@ -154,16 +173,13 @@ int main()
 			delta_time, 
 			cam.get_position().x, cam.get_position().y, cam.get_position().z,
 			cam.get_front().x, cam.get_front().y, cam.get_front().z,
-			cam.get_rotation().x, cam.get_rotation().y
+			cam.get_pitch(), cam.get_yaw()
 		).c_str());
 
 		{
-			compute_shader.setVec3("camera_loc", cam.get_position());
-			compute_shader.setVec2("camera_rot", cam.get_rotation());
-			compute_shader.setVec3("camera_dir", cam.get_front());
-			compute_shader.setVec3("camera_up", cam.get_up());
-			compute_shader.setVec3("camera_right", cam.get_right());
 			compute_shader.setMat4("camera_to_world", cam.get_camera_to_world());
+			compute_shader.setInt("u_frame_count", cam.get_frames_still());
+			compute_shader.setBool("u_camera_moved", cam.get_moved());
 			compute_shader.use();
 			glDispatchCompute((GLuint)tex.width(), (GLuint)tex.height(), 1);
 		}
@@ -182,6 +198,8 @@ int main()
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
 			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 		} 
+
+		cam.update_movement();
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();

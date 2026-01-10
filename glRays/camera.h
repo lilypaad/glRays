@@ -10,7 +10,7 @@
 
 class Camera
 {
-	float camera_speed = 2.0f;
+	float camera_speed = 1.0f;
 	float sensitivity = 1.5f;
 
 	// Camera vectors
@@ -36,7 +36,7 @@ class Camera
 	} key_pressed;
 
 public:
-	Camera(GLFWwindow* window, float camera_speed=2.0, float sensitivity=1.0) 
+	Camera(GLFWwindow* window, float camera_speed=10.0, float sensitivity=1.0) 
 	{
 		glfwSetWindowUserPointer(window, reinterpret_cast<void*>(this));
 
@@ -55,92 +55,6 @@ public:
 	glm::vec3 get_up() const { return up; }
 	glm::vec3 get_right() const { return right; }
 	glm::mat4x4 get_camera_to_world() const { return camera_to_world; }
-
-	//static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-	//{
-	//	Camera* cam = reinterpret_cast <Camera*>(glfwGetWindowUserPointer(window));
-	//	if (cam)
-	//		cam->key_handler(window, key, scancode, action, mods);
-	//}
-
-	//static void mouse_pos_callback(GLFWwindow* window, double xpos, double ypos)
-	//{
-	//	Camera* cam = reinterpret_cast <Camera*>(glfwGetWindowUserPointer(window));
-	//	if (cam)
-	//		cam->mouse_pos_handler(window, xpos, ypos);
-	//}
-
-	//void update_position()
-	//{
-	//	float now = glfwGetTime();
-	//	delta_time = now - last_frame;
-	//	last_frame = now;
-	//	float move_speed = camera_speed * delta_time;
-
-	//	if (key_pressed.fwd)
-	//		position += front * move_speed;
-	//	if (key_pressed.bkwd)
-	//		position -= front * move_speed;
-	//	if (key_pressed.left)
-	//		position -= right * move_speed;
-	//	if (key_pressed.right)
-	//		position += right * move_speed;
-	//	if (key_pressed.up)
-	//		position += world_up * move_speed;
-	//	if (key_pressed.down)
-	//		position -= world_up * move_speed;
-
-	//	update_vectors();
-	//}
-
-	//void key_handler(GLFWwindow* window, int key, int scancode, int action, int mods)
-	//{
-	//	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-	//		glfwSetWindowShouldClose(window, GLFW_TRUE);
-
-	//	if (action == GLFW_PRESS)
-	//	{
-	//		if (key == GLFW_KEY_W) key_pressed.fwd = true;
-	//		if (key == GLFW_KEY_S) key_pressed.bkwd = true;
-	//		if (key == GLFW_KEY_A) key_pressed.left = true;
-	//		if (key == GLFW_KEY_D) key_pressed.right = true;
-	//		if (key == GLFW_KEY_SPACE) key_pressed.up = true;
-	//		if (key == GLFW_KEY_LEFT_CONTROL) key_pressed.down = true;
-	//	}
-	//	if (action == GLFW_RELEASE)
-	//	{
-	//		if (key == GLFW_KEY_W) key_pressed.fwd = false;
-	//		if (key == GLFW_KEY_S) key_pressed.bkwd = false;
-	//		if (key == GLFW_KEY_A) key_pressed.left = false;
-	//		if (key == GLFW_KEY_D) key_pressed.right = false;
-	//		if (key == GLFW_KEY_SPACE) key_pressed.up = false;
-	//		if (key == GLFW_KEY_LEFT_CONTROL) key_pressed.down = false;
-	//	}
-	//}
-
-	//void mouse_pos_handler(GLFWwindow* window, double xpos, double ypos)
-	//{
-	//	if (first_mouse)
-	//	{
-	//		lastX = xpos;
-	//		lastY = ypos;
-	//		first_mouse = false;
-	//	}
-
-	//	float xoffset = (xpos - lastX);
-	//	float yoffset = (lastY - ypos);
-	//	lastX = xpos;
-	//	lastY = ypos;
-
-	//	rotation.x += yoffset;
-	//	rotation.y += xoffset;
-	//	if (rotation.x > 90.0f)
-	//		rotation.x = 90.0f;
-	//	if (rotation.x < -90.0f)
-	//		rotation.x = -90.0f;
-
-	//	update_vectors();
-	//}
 
 	void processInput(GLFWwindow* window, float delta_time)
 	{
@@ -180,10 +94,10 @@ public:
 
 		rotation.x += yoffset;
 		rotation.y += xoffset;
-		if (rotation.x > 90.0f)
-			rotation.x = 90.0f;
-		if (rotation.x < -90.0f)
-			rotation.x = -90.0f;
+		if (rotation.x > 89.9f)
+			rotation.x = 89.9f;
+		if (rotation.x < -89.9f)
+			rotation.x = -89.9f;
 
 		// Update camera vectors
 		float pitch = rotation.x;

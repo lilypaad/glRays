@@ -4,12 +4,6 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 layout(rgba32f, binding = 0) uniform image2D img_output;
 
-// layout(set = 0, binding = 0) buffer Buffer
-// {
-// 	uint count;
-// 	Sphere sphere[];
-// }
-
 uniform vec3 camera_loc;
 uniform vec2 camera_rot;
 uniform vec3 camera_dir;
@@ -18,6 +12,8 @@ uniform vec3 camera_right;
 uniform mat4 camera_to_world;
 
 const float PI = 3.1415926535897932385;
+const float INFINITY = 1.0 / 0.0;
+const int n_spheres = 4;
 
 struct Ray
 {
@@ -25,55 +21,88 @@ struct Ray
 	vec3 direction;
 };
 
+struct Material
+{
+	vec4 colour;
+    vec3 emission_colour;
+    float emission_strength;
+};
+
 struct Sphere
 {
-	vec3 center;
-	float r;
+	Material material;
+	vec3 centre;
+	float radius;
 };
 
 struct HitInfo
 {
+	Material material;
 	vec3 point;
 	vec3 normal;
 	float dist;
 	bool collided;
 };
 
-vec3 at(Ray r, float t)
+layout (std140, binding = 1) uniform scene_buffer
 {
-	return r.origin + t * r.direction;
-}
+	Sphere u_spheres[n_spheres];
+};
 
-float hit_sphere(vec3 center, float radius, Ray r)
+HitInfo hit_sphere(vec3 centre, float radius, Ray r)
 {
-	vec3 oc = center - r.origin;
+	HitInfo hit;
+	hit.collided = false;
+
+	vec3 oc = centre - r.origin;
 	float a = dot(r.direction, r.direction);
 	float h = dot(r.direction, oc);
 	float c = dot(oc, oc) - radius * radius;
 	float discriminant = h*h - a*c;
 
-	if(discriminant < 0)
-		return -1.0;
-	else
-		return (h - sqrt(discriminant)) / a;
+	if(discriminant >= 0) {
+		float dst = (h - sqrt(discriminant)) / a;
+		if (dst >= 0) {
+			hit.collided = true;
+			hit.dist = dst;
+			hit.point = r.origin + r.direction * dst;
+			hit.normal = normalize(hit.point - centre);
+		}
+	}
+	return hit;
 }
 
-vec3 unit_vector(vec3 v)
+HitInfo ray_collision(Ray ray)
 {
-	float magnitude = sqrt(pow(v.x, 2.0f) + pow(v.y, 2.0f) + pow(v.z, 2.0f));
-	return v / magnitude;
+	Material default_colour = {
+		vec4(0.2, 0.2, 0.7, 1),
+		vec3(0, 0, 0),
+		0.0
+	};
+
+	HitInfo closest;
+	closest.dist = INFINITY;
+	closest.material = default_colour;
+
+	for (int i = 0; i < n_spheres; i++) {
+		Sphere sphere = u_spheres[i];
+		HitInfo hit = hit_sphere(sphere.centre, sphere.radius, ray);
+
+		if (hit.collided && hit.dist < closest.dist) {
+			closest = hit;
+			closest.material = sphere.material;
+		}
+	}
+
+	return closest;
 }
 
 vec4 ray_color(Ray ray)
 {
-	float t = hit_sphere(vec3(0, 0, -5), 1.0, ray);
-	if(t > 0.0) {
-		vec3 N = normalize(at(ray, t) - camera_loc);
-		return vec4(0.5 * vec3(N.x+1, N.y+1, N.z+1), 1.0);
-	}
+	// HitInfo hit = hit_sphere(vec3(0, 0, -5), 1.0, ray);
+	// return vec4(float(hit.collided) * vec3(1.0), 1.0);
 
-	float a = 0.5 * (ray.direction.y + 1.0);
-	return vec4((1.0-a) * vec3(1.0, 1.0, 1.0) + a*vec3(0.5, 0.7, 1.0), 1.0);
+	return ray_collision(ray).material.colour;
 }
 
 void main() 
@@ -101,7 +130,7 @@ void main()
 	// TEST PATTERN: xy pix coords (bottom left black, top right R+G
 	// vec4 pixel = vec4(pix_coords / vec2(800, 600), 0, 1);
 
-	// TEST PATTER: ray direction vector -> rgb
+	// TEST PATTERN: ray direction vector -> rgb
 	// vec4 pixel = vec4(ray_direction, 1);
 
 	Ray r = Ray(ray_origin, ray_direction); 

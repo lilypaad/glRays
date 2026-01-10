@@ -6,6 +6,7 @@
 #include "gl_texture.h"
 #include "camera.h"
 #include "shader.h"
+#include "scene.h"
 
 const int WIDTH = 800, HEIGHT = 600;
 int window_width, window_height;
@@ -89,6 +90,7 @@ int main()
 	glEnableVertexAttribArray(1);
 
 
+
 	// Set up camera
 	Camera cam = Camera(window);
 
@@ -102,6 +104,24 @@ int main()
 	quad_shader.attach("vertex.glsl", GL_VERTEX_SHADER);
 	quad_shader.attach("fragment.glsl", GL_FRAGMENT_SHADER);
 	quad_shader.link();
+
+
+
+
+	// Set up sphere buffer
+	unsigned int sphere_ubo;
+	SceneData scene_data = defaultScene();
+	glGenBuffers(1, &sphere_ubo);
+	glBindBuffer(GL_UNIFORM_BUFFER, sphere_ubo);
+	glBufferData(GL_UNIFORM_BUFFER, scene_data.size, NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	glUniformBlockBinding(compute_shader.id, sphere_ubo, 1);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, sphere_ubo);
+	glBufferSubData(GL_UNIFORM_BUFFER, 0, scene_data.size, scene_data.objects);
+
+
+
 
 
 	// glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);

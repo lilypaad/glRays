@@ -14,8 +14,6 @@ uniform int u_rays_per_pixel;
 const float PI = 3.1415926535897932385;
 const float INFINITY = 1.0 / 0.0;
 const int n_spheres = 4;
-const int max_bounces = 64;
-const int rays_per_pixel = 1;
 
 struct Ray
 {
@@ -25,10 +23,16 @@ struct Ray
 
 struct Material
 {
-	vec3 colour;
-    float emission_strength;
-    vec3 emission_colour;
-	float std140padding;
+	vec3 colour;                  // offset 0   // align 16  // total 16
+    float std140padding1;         // offset 12  // align 4   // total 16
+    vec3 emission_colour;         // offset 16  // align 16  // total 32
+    float std140padding2;         // offset 28  // align 4   // total 32
+    vec3 specular_colour;         // offset 32  // align 16  // total 48
+    float std140padding3;         // offset 44  // align 4   // total 48
+    float specular_probability;   // offset 48  // align 4   // total 52
+    float emission_strength;      // offset 52  // align 4   // total 56
+    float smoothness;             // offset 56  // align 4   // total 60
+    float std140padding4;         // offset 60  // align 4   // total 64
 };
 
 struct Sphere
@@ -45,6 +49,14 @@ struct HitInfo
 	vec3 normal;
 	float dist;
 	bool collided;
+};
+
+struct Triangle
+{
+	vec3 a;
+	vec3 b;
+	vec3 c;
+	vec3 normal;
 };
 
 unsigned int rng_state = 0;
@@ -85,8 +97,50 @@ vec3 random_direction_hemisphere(vec3 normal)
 	if(dot(normal, dir) < 0)
 		dir = -dir;
 	return dir;
+}
 
-	//return dir * sign(dot(normal, dir));
+vec3 environment_light(Ray ray)
+{
+	vec3 colour_ground = vec3(0.5, 0.5, 0.5);
+	vec3 colour_sky_horizon = vec3(1.0, 1.0, 1.0);
+	vec3 colour_sky_zenith = vec3(0.5, 0.7, 1.0);
+	vec3 sun_direction = normalize(vec3(2.5, 1, -1));
+	float sun_focus = 50.0;
+	float sun_intensity = 40.0;
+
+	float gradient_interp = pow(smoothstep(0.0, 0.4, ray.direction.y), 0.35);
+	float ground_to_sky = smoothstep(-0.01, 0.0, ray.direction.y);
+	vec3 gradient = mix(colour_sky_horizon, colour_sky_zenith, gradient_interp);
+	float sun = pow(max(0, dot(ray.direction, sun_direction)), sun_focus) * sun_intensity;
+
+	vec3 composite = mix(colour_ground, gradient, ground_to_sky) + sun * float(ground_to_sky >= 1);
+	return composite;
+}
+
+HitInfo hit_triangle(Triangle tri, Ray ray)
+{
+	HitInfo hit;
+	hit.collided = false;
+
+	vec3 AB = tri.b - tri.a;
+	vec3 AC = tri.c - tri.a;
+	vec3 normal = cross(AB, AC);
+	float det = -dot(ray.direction, normal);
+	float invdet = 1.0 / det;
+	vec3 AO = ray.origin - tri.a;
+	vec3 DAO = cross(AO, ray.direction);
+	float u = dot(AC, DAO) * invdet;
+	float v = -dot(AB, DAO) * invdet;
+	float w = 1 - u - v;
+	float t = dot(AO, normal) * invdet;
+
+	bool did_hit = (det >= 1e-6 && t >= 0.0 && u >= 0.0 && v >= 0.0 && (u+v) <= 1.0);
+
+	hit.collided = did_hit;
+	hit.point = ray.origin + ray.direction * t;
+	hit.normal = normalize(tri.normal * w + tri.normal * u + tri.normal * v);
+	hit.dist = t;
+	return hit;
 }
 
 HitInfo hit_sphere(vec3 centre, float radius, Ray ray)
@@ -114,15 +168,19 @@ HitInfo hit_sphere(vec3 centre, float radius, Ray ray)
 
 HitInfo ray_collision(Ray ray)
 {
-	Material default_colour = { vec3(0, 0, 0), 0.0, vec3(0, 0, 0), 0.0 };
+	Material default_colour = { 
+		vec3(0, 0, 0), 
+		0.0, 
+		vec3(0, 0, 0), 
+		0.0, 
+		vec3(0, 0, 0), 
+		0.0, 
+		0.0, 0.0, 0.0, 0.0
+	};
 
 	HitInfo closest;
 	closest.dist = INFINITY;
 	closest.material = default_colour;
-
-	// maybe remove later
-	//closest.point = vec3(0, 0, 0);
-	//closest.normal = vec3(0,0,0);
 	closest.collided = false;
 
 	for (int i = 0; i < n_spheres; i++) {
@@ -134,6 +192,38 @@ HitInfo ray_collision(Ray ray)
 			closest.material = sphere.material;
 		}
 	}
+
+	// FIXME -- test tri, iterate this over all mesh info
+	Triangle tri = { 
+		vec3(-1.0, 0.0, -1.0),
+		vec3( 0.0, 2.0,  1.0),
+		vec3( 1.0, 0.0,  1.0),
+		vec3(0,0,0)
+	};
+	vec3 U = tri.b - tri.a;
+	vec3 V = tri.c - tri.a;
+	tri.normal = vec3(
+		U.y * V.z - U.z * V.y,
+		U.z * V.x - U.x * V.z,
+		U.x * V.y - U.y * V.x
+	);
+	Material tempmat = {
+		vec3(1.0, 1.0, 1.0),
+		0.0,
+		vec3(1.0, 1.0, 1.0),
+		0.0,
+		vec3(1.0, 1.0, 1.0),
+		0.0,
+		0.0, 0.0, 0.0, 0.0
+	};
+
+	HitInfo hittri = hit_triangle(tri, ray);
+	if(hittri.collided && hittri.dist < closest.dist) {
+		closest = hittri;
+		closest.material = tempmat;
+	}
+	// FIXME -- test tri
+
 
 	return closest;
 }
@@ -149,14 +239,15 @@ vec3 trace(Ray ray)
 		if(hit.collided)
 		{
 			ray.origin = hit.point;
-			ray.direction = random_direction_hemisphere(hit.normal);
+			ray.direction = normalize(hit.normal + random_direction());
 
 			vec3 emitted_light = hit.material.emission_colour * hit.material.emission_strength;
 			incoming_light += emitted_light * ray_colour ;
-			ray_colour = ray_colour * hit.material.colour;
+			ray_colour *= hit.material.colour;
 		}
 		else
 		{
+			incoming_light += environment_light(ray) * ray_colour;
 			break;
 		}
 	}
@@ -199,7 +290,6 @@ void main()
 	// TEST PATTERN: gaussian noise
 	// vec4 pixel = vec4(normalize(vec3(rand_gauss(), rand_gauss(), rand_gauss())), 1.0);
 
-
 	if(u_camera_moved)
 		imageStore(img_output, pix_coords, vec4(0.0, 0.0, 0.0, 1.0));
 
@@ -209,7 +299,7 @@ void main()
 
 	for (int i = 0; i < u_rays_per_pixel; i++)
 		total_light += trace(r);
-	total_light = total_light / rays_per_pixel;
+	total_light = total_light / u_rays_per_pixel;
 
 	float weight = 1.0f / float(u_frame_count + 1);
 	vec3 pixel_col = accumulated_colour.rgb * (1 - weight) + total_light * weight;

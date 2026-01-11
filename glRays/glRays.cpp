@@ -180,9 +180,6 @@ int main()
 			delta_time = diff.count();
 			start = end;
 
-			cam.set_delta_time(delta_time);
-			cam.update_movement();
-
 			ImGui_ImplOpenGL3_NewFrame();
 			ImGui_ImplGlfw_NewFrame();
 			ImGui::NewFrame();
@@ -192,6 +189,8 @@ int main()
 			cam.set_sensitivity(options_obj.camera_sensitivity);
 			cam.set_camera_speed(options_obj.camera_speed);
 
+			cam.set_delta_time(delta_time);
+			cam.update_movement();
 		}
 
 		// Run compute shader

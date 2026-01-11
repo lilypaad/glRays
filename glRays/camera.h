@@ -188,9 +188,8 @@ public:
 			if (pitch < -89.9f)
 				pitch = -89.9f;
 
-			update_vectors();
-
 			need_refresh();
+			update_vectors();
 		}
 	}
 

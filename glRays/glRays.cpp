@@ -3,10 +3,15 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+
 #include "gl_texture.h"
 #include "camera.h"
 #include "shader.h"
 #include "scene.h"
+#include "options.h"
 
 const int WIDTH = 800, HEIGHT = 600;
 int window_width, window_height;
@@ -71,6 +76,22 @@ int main()
 
 	glViewport(0, 0, WIDTH, HEIGHT);
 
+	//glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	glfwSetErrorCallback(error_callback);
+	glfwSetWindowCloseCallback(window, window_close_callback);
+	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetKeyCallback(window, key_callback);
+	glfwSetCursorPosCallback(window, cursor_callback);
+
+
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
+	ImGui_ImplOpenGL3_Init();
+
 
 	// Setup texture to render to
 	GLTexture tex = GLTexture(WIDTH, HEIGHT);
@@ -122,8 +143,6 @@ int main()
 	quad_shader.link();
 
 
-
-
 	// Set up sphere buffer
 	unsigned int sphere_ubo;
 	SceneData scene_data = defaultScene();
@@ -134,41 +153,34 @@ int main()
 
 	glUniformBlockBinding(compute_shader.id, sphere_ubo, 2);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 2, sphere_ubo);
-	//glBufferSubData(GL_UNIFORM_BUFFER, 0, scene_data.size, scene_data.objects);
 
 
-
-
-
-	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-	glfwSetErrorCallback(error_callback);
-	glfwSetWindowCloseCallback(window, window_close_callback);
-	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
-	glfwSetKeyCallback(window, key_callback);
-	glfwSetCursorPosCallback(window, cursor_callback);
-
-
-	// Keep track of these for input
-	float delta_time = 0.0f;
-	float last_frame = 0.0f;
+	Options options_obj = Options();
 
 	// Main loop
 	while (!glfwWindowShouldClose(window)) {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		// Process input
+		glfwPollEvents();
 		{
 			float now = glfwGetTime();
 			delta_time = now - last_frame;
 			last_frame = now;
 			cam.set_delta_time(delta_time);
+			cam.update_movement();
 		}
 
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		// Render options imgui window and update relevant data
+		options_obj.render_options_window();
+		cam.set_sensitivity(options_obj.sensitivity);
+		cam.set_camera_speed(options_obj.camera_speed);
 
 		// Show frame time
-		float now = glfwGetTime();
-		delta_time = now - last_frame;
-		last_frame = now;
 		glfwSetWindowTitle(window, std::format(
 			"glRays | {:.4f}ms | pos x={:.2f} y={:.2f} z={:.2f} | dir x={:.2f} y={:.2f} z={:.2f} | pitch {:.2f} yaw {:.2f}", 
 			delta_time, 
@@ -178,10 +190,11 @@ int main()
 		).c_str());
 
 		{
-			compute_shader.setMat4("camera_to_world", cam.get_camera_to_world());
+			compute_shader.use();
 			compute_shader.setInt("u_frame_count", cam.get_frames_still());
 			compute_shader.setBool("u_camera_moved", cam.get_moved());
-			compute_shader.use();
+			compute_shader.setFloat("u_fov", options_obj.fov);
+			compute_shader.setMat4("camera_to_world", cam.get_camera_to_world());
 			glDispatchCompute((GLuint)tex.width(), (GLuint)tex.height(), 1);
 		}
 
@@ -200,13 +213,17 @@ int main()
 			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 		} 
 
-		cam.update_movement();
+		// ImGui
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 		glfwSwapBuffers(window);
-		glfwPollEvents();
 	}
 
 	// Cleanup
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 	glfwDestroyWindow(window);
 	glfwTerminate();
 

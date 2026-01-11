@@ -5,7 +5,7 @@
 # Add source to this project's executable.
 add_executable (glRays
 	glRays.cpp 
-	"shader.cpp" "shader.h" "camera.h" "vertex.glsl" "fragment.glsl" "compute.glsl" "scene.h")
+	"shader.cpp" "shader.h" "camera.h" "vertex.glsl" "fragment.glsl" "compute.glsl" "scene.h" "options.h")
 
 # Copy over shader files so program can read & compile them
 add_custom_command(

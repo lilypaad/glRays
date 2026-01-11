@@ -4,9 +4,10 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
 layout(rgba32f, binding = 0) uniform image2D img_output;
 
-uniform mat4 camera_to_world;
 uniform int u_frame_count;
 uniform bool u_camera_moved;
+uniform float u_fov;
+uniform mat4 camera_to_world;
 
 const float PI = 3.1415926535897932385;
 const float INFINITY = 1.0 / 0.0;
@@ -176,8 +177,8 @@ void main()
 	// Run-down of the math can be found here:
 	// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-generating-camera-rays/generating-camera-rays.html
 	vec3 pixel_camera = vec3(
-		(2 * ((float(pix_coords.x) + 0.5) / dims.x) - 1) * tan(fov / 2 * PI / 180) * aspect_ratio,
-		(2 * ((float(pix_coords.y) + 0.5) / dims.y) - 1) * tan(fov / 2 * PI / 180),
+		(2 * ((float(pix_coords.x) + 0.5) / dims.x) - 1) * tan(u_fov / 2 * PI / 180) * aspect_ratio,
+		(2 * ((float(pix_coords.y) + 0.5) / dims.y) - 1) * tan(u_fov / 2 * PI / 180),
 		-1.0
 	);
 

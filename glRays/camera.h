@@ -11,8 +11,8 @@
 class Camera
 {
 	float delta_time = 0.1f;
-	float camera_speed;
-	float sensitivity;
+	float camera_speed = 1.0f;
+	float sensitivity = 1.0f;
 
 	// Camera vectors
 	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -40,7 +40,7 @@ class Camera
 	int frames_still = 0; // how many frames the camera has been held still
 
 public:
-	Camera(GLFWwindow* window, float camera_speed=5.0, float sensitivity=0.5) 
+	Camera(GLFWwindow* window)
 	{
 		glfwSetWindowUserPointer(window, reinterpret_cast<void*>(this));
 
@@ -48,9 +48,6 @@ public:
 		glfwGetWindowSize(window, &w, &h);
 		lastX = float(w) / 2.0;
 		lastY = float(h) / 2.0;
-		
-		this->camera_speed = camera_speed;
-		this->sensitivity = sensitivity;
 	}
 
 	glm::vec3 get_position() const { return position; }
@@ -90,8 +87,8 @@ public:
 	}
 
 	void set_delta_time(float time) { this->delta_time = time; }
-	float set_sensitivity(float sensitivity) { this->sensitivity = sensitivity; }
-	float set_camera_speed(float speed) { this->camera_speed = speed; }
+	void set_sensitivity(float sensitivity) { this->sensitivity = sensitivity; }
+	void set_camera_speed(float speed) { this->camera_speed = speed; }
 
 	void update_movement()
 	{

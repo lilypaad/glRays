@@ -78,32 +78,33 @@ int main()
 
 
 	// Setup quad to display
-	GLfloat vertices[] = { 
-		// pos              // texture coord
-		 1.0,  1.0, 0.0,    1.0, 1.0,    // top right
-		 1.0, -1.0, 0.0,    1.0, 0.0,    // bottom right
-		-1.0, -1.0, 0.0,    0.0, 0.0,    // bottom left
-		-1.0,  1.0, 0.0,    0.0, 1.0     // top left
-	};
-	unsigned int indices[] = { 0, 1, 3, 1, 2, 3 };
-
 	unsigned int vbo, vao, ebo;
-	glGenBuffers(1, &vbo);
-	glGenBuffers(1, &ebo);
-	glGenVertexArrays(1, &vao);
+	{
+		GLfloat vertices[] = { 
+			// pos              // texture coord
+			 1.0,  1.0, 0.0,    1.0, 1.0,    // top right
+			 1.0, -1.0, 0.0,    1.0, 0.0,    // bottom right
+			-1.0, -1.0, 0.0,    0.0, 0.0,    // bottom left
+			-1.0,  1.0, 0.0,    0.0, 1.0     // top left
+		};
+		unsigned int indices[] = { 0, 1, 3, 1, 2, 3 };
 
-	glBindVertexArray(vao);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+		glGenBuffers(1, &vbo);
+		glGenBuffers(1, &ebo);
+		glGenVertexArrays(1, &vao);
 
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+		glEnableVertexAttribArray(1);
+	}
 
 
 	// Set up camera
@@ -204,6 +205,10 @@ int main()
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
+
+	// Cleanup
+	glfwDestroyWindow(window);
+	glfwTerminate();
 
 	return 1;
 }

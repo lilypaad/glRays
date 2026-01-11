@@ -12,7 +12,7 @@ class Camera
 {
 	float delta_time = 0.1f;
 	float camera_speed = 1.0f;
-	float sensitivity = 1.5f;
+	float sensitivity = 1.0f;
 
 	// Camera vectors
 	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -23,12 +23,9 @@ class Camera
 	float pitch = 0.0, yaw = 0.0;
 	glm::mat4 camera_to_world = glm::mat4(1.0);
 
-	// Info for mouse movement handling
+	// Info for input handling
 	float lastX, lastY;
 	float first_mouse = true;
-
-	bool cam_moved = false;
-	int frames_still = 0; // how many frames the camera has been held still
 
 	struct {
 		bool forward = false;
@@ -38,6 +35,9 @@ class Camera
 		bool up = false;
 		bool down = false;
 	} active_keys;
+
+	bool cam_moved = false;
+	int frames_still = 0; // how many frames the camera has been held still
 
 public:
 	Camera(GLFWwindow* window, float camera_speed=10.0, float sensitivity=1.0) 
@@ -200,82 +200,5 @@ public:
 		front = normalize(front);
 		right = glm::normalize(glm::cross(front, world_up));
 		up = glm::normalize(glm::cross(right, front));
-	}
-
-	void processInput(GLFWwindow* window, float delta_time)
-	{
-		// Keyboard input
-		float move = camera_speed * delta_time;
-
-		if(glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-			position += front * move;
-		if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-			position -= front * move;
-		if(glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-			position -= right * move;
-		if(glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-			position += right * move;
-		if(glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-			position += world_up * move;
-		if(glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-			position -= world_up * move;
-		if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
-
-
-		// Mouse input
-		double xpos, ypos;
-		glfwGetCursorPos(window, &xpos, &ypos);
-
-		if (first_mouse)
-		{
-			lastX = xpos;
-			lastY = ypos;
-			first_mouse = false;
-		}
-
-		float xoffset = (xpos - lastX);
-		float yoffset = (lastY - ypos);
-		lastX = xpos;
-		lastY = ypos;
-
-		if (xoffset != 0 || yoffset != 0)
-			cam_moved = true;
-
-		pitch += yoffset;
-		yaw += xoffset;
-		if (pitch > 89.9f)
-			pitch = 89.9f;
-		if (pitch < -89.9f)
-			pitch = -89.9f;
-
-		// Update camera vectors
-		front.x = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
-		front.y = sin(glm::radians(pitch));
-		front.z = -cos(glm::radians(pitch)) * cos(glm::radians(yaw));
-		front = normalize(front);
-		right = glm::normalize(glm::cross(front, world_up));
-		up = glm::normalize(glm::cross(right, front));
-
-		// Update camera-to-world transform matrix
-		glm::mat4x4 m_translation = {
-			1.0, 0.0, 0.0, 0.0,
-			0.0, 1.0, 0.0, 0.0,
-			0.0, 0.0, 1.0, 0.0,
-			position.x, position.y, position.z, 1.0
-		};
-		glm::mat4x4 m_rotation_x = {
-			1.0, 0.0, 0.0, 0.0,
-			0.0, cos(glm::radians(pitch)), sin(glm::radians(pitch)), 0.0,
-			0.0, -sin(glm::radians(pitch)), cos(glm::radians(pitch)), 0.0,
-			0.0, 0.0, 0.0, 1.0
-		};
-		glm::mat4x4 m_rotation_y = {
-			cos(glm::radians(yaw)), 0.0, sin(glm::radians(yaw)), 0.0,
-			0.0, 1.0, 0.0, 0.0,
-			-sin(glm::radians(yaw)), 0.0, cos(glm::radians(yaw)), 0.0,
-			0.0, 0.0, 0.0, 1.0
-		};
-		camera_to_world = m_translation * m_rotation_y * m_rotation_x; 
 	}
 };

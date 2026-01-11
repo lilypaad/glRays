@@ -1,4 +1,5 @@
 ﻿#include <iostream>
+#include <chrono>
 
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
@@ -13,7 +14,7 @@
 #include "scene.h"
 #include "options.h"
 
-const int WIDTH = 800, HEIGHT = 600;
+const int WIDTH = 1600, HEIGHT = 900;
 int window_width, window_height;
 int frame_count = 0;
 float delta_time = 0.0f;
@@ -47,7 +48,14 @@ static void cursor_callback(GLFWwindow* window, double xpos, double ypos)
 {
 	Camera* handler = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
 	if (handler)
-		handler->mouse_event(window, xpos, ypos);
+		handler->mouse_move_event(window, xpos, ypos);
+}
+
+static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	Camera* handler = reinterpret_cast<Camera*>(glfwGetWindowUserPointer(window));
+	if (handler)
+		handler->mouse_button_event(window, button, action, mods);
 }
 
 int main()
@@ -75,6 +83,7 @@ int main()
 	std::clog << "OpenGL " << glGetString(GL_VERSION) << std::endl;
 
 	glViewport(0, 0, WIDTH, HEIGHT);
+	glfwSetWindowTitle(window, "glRays");
 
 	//glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 	glfwSetErrorCallback(error_callback);
@@ -82,6 +91,7 @@ int main()
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetCursorPosCallback(window, cursor_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
 
 
 	// Setup Dear ImGui context
@@ -129,7 +139,7 @@ int main()
 
 
 	// Set up camera
-	Camera cam = Camera(window);
+	Camera cam = Camera(window, io);
 
 
 	// Compile shaders
@@ -155,7 +165,8 @@ int main()
 	glBindBufferBase(GL_UNIFORM_BUFFER, 2, sphere_ubo);
 
 
-	Options options_obj = Options();
+	Options options_obj = Options(cam);
+	auto start = std::chrono::steady_clock::now();
 
 	// Main loop
 	while (!glfwWindowShouldClose(window)) {
@@ -164,36 +175,33 @@ int main()
 		// Process input
 		glfwPollEvents();
 		{
-			float now = glfwGetTime();
-			delta_time = now - last_frame;
-			last_frame = now;
+			auto end = std::chrono::steady_clock::now();
+			const std::chrono::duration<float> diff = end - start;
+			delta_time = diff.count();
+			start = end;
+
 			cam.set_delta_time(delta_time);
 			cam.update_movement();
+
+			ImGui_ImplOpenGL3_NewFrame();
+			ImGui_ImplGlfw_NewFrame();
+			ImGui::NewFrame();
+
+			// Render options imgui window and update relevant data
+			options_obj.render_options_window(delta_time);
+			cam.set_sensitivity(options_obj.camera_sensitivity);
+			cam.set_camera_speed(options_obj.camera_speed);
+
 		}
 
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-
-		// Render options imgui window and update relevant data
-		options_obj.render_options_window();
-		cam.set_sensitivity(options_obj.sensitivity);
-		cam.set_camera_speed(options_obj.camera_speed);
-
-		// Show frame time
-		glfwSetWindowTitle(window, std::format(
-			"glRays | {:.4f}ms | pos x={:.2f} y={:.2f} z={:.2f} | dir x={:.2f} y={:.2f} z={:.2f} | pitch {:.2f} yaw {:.2f}", 
-			delta_time, 
-			cam.get_position().x, cam.get_position().y, cam.get_position().z,
-			cam.get_front().x, cam.get_front().y, cam.get_front().z,
-			cam.get_pitch(), cam.get_yaw()
-		).c_str());
-
+		// Run compute shader
 		{
 			compute_shader.use();
 			compute_shader.setInt("u_frame_count", cam.get_frames_still());
 			compute_shader.setBool("u_camera_moved", cam.get_moved());
-			compute_shader.setFloat("u_fov", options_obj.fov);
+			compute_shader.setFloat("u_fov", options_obj.camera_fov);
+			compute_shader.setInt("u_max_bounces", options_obj.rt_max_bounces);
+			compute_shader.setInt("u_rays_per_pixel", options_obj.rt_rays_per_pixel);
 			compute_shader.setMat4("camera_to_world", cam.get_camera_to_world());
 			glDispatchCompute((GLuint)tex.width(), (GLuint)tex.height(), 1);
 		}
@@ -201,7 +209,7 @@ int main()
 		// prevent reading until finished writing to image
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-		// Actual draw call
+		// Draw results to screen
 		{
 			glClear(GL_COLOR_BUFFER_BIT);
 			quad_shader.use();

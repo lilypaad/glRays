@@ -8,6 +8,8 @@ uniform int u_frame_count;
 uniform bool u_camera_moved;
 uniform float u_fov;
 uniform mat4 camera_to_world;
+uniform int u_max_bounces;
+uniform int u_rays_per_pixel;
 
 const float PI = 3.1415926535897932385;
 const float INFINITY = 1.0 / 0.0;
@@ -141,7 +143,7 @@ vec3 trace(Ray ray)
 	vec3 incoming_light = vec3(0.0, 0.0, 0.0);
 	vec3 ray_colour = vec3(1.0, 1.0, 1.0);
 
-	for(int i = 0; i <= max_bounces; i++)
+	for(int i = 0; i <= u_max_bounces; i++)
 	{
 		HitInfo hit = ray_collision(ray);
 		if(hit.collided)
@@ -205,7 +207,7 @@ void main()
 
 	vec3 total_light = vec3(0.0);
 
-	for (int i = 0; i < rays_per_pixel; i++)
+	for (int i = 0; i < u_rays_per_pixel; i++)
 		total_light += trace(r);
 	total_light = total_light / rays_per_pixel;
 

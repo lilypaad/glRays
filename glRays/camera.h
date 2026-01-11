@@ -8,11 +8,14 @@
 #include <glm/geometric.hpp>
 #include <glm/trigonometric.hpp>
 
+#include <imgui.h>
+
 class Camera
 {
 	float delta_time = 0.1f;
 	float camera_speed = 1.0f;
 	float sensitivity = 1.0f;
+	float fov = 70.0f;
 
 	// Camera vectors
 	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -26,6 +29,7 @@ class Camera
 	// Info for input handling
 	float lastX, lastY;
 	float first_mouse = true;
+	ImGuiIO& imgui_io;
 
 	struct {
 		bool forward = false;
@@ -34,13 +38,14 @@ class Camera
 		bool right = false;
 		bool up = false;
 		bool down = false;
+		bool mouse1 = false;
 	} active_keys;
 
 	bool cam_moved = false;
 	int frames_still = 0; // how many frames the camera has been held still
 
 public:
-	Camera(GLFWwindow* window)
+	Camera(GLFWwindow* window, ImGuiIO& io) : imgui_io(io)
 	{
 		glfwSetWindowUserPointer(window, reinterpret_cast<void*>(this));
 
@@ -60,6 +65,7 @@ public:
 	int get_frames_still() const { return frames_still; }
 	float get_sensitivity() const { return sensitivity; }
 	float get_camera_speed() const { return camera_speed; }
+	float get_fov() const { return fov; }
 
 	glm::mat4x4 get_camera_to_world() 
 	{
@@ -90,42 +96,46 @@ public:
 	void set_sensitivity(float sensitivity) { this->sensitivity = sensitivity; }
 	void set_camera_speed(float speed) { this->camera_speed = speed; }
 
+	void set_fov(float fov) 
+	{ 
+		this->fov = fov;
+		need_refresh();
+	}
+
 	void update_movement()
 	{
 		float dist = camera_speed * delta_time;
+		cam_moved = false;
 
 		if (active_keys.forward) {
 			position += front * dist;
 			cam_moved = true;
-			frames_still = 0;
 		}
-		else if (active_keys.back) {
+		if (active_keys.back) {
 			position -= front * dist;
 			cam_moved = true;
-			frames_still = 0;
 		}
-		else if (active_keys.left) {
+		if (active_keys.left) {
 			position -= right * dist;
 			cam_moved = true;
-			frames_still = 0;
 		}
-		else if (active_keys.right) {
+		if (active_keys.right) {
 			position += right * dist;
 			cam_moved = true;
-			frames_still = 0;
 		}
-		else if (active_keys.up) {
+		if (active_keys.up) {
 			position += up * dist;
 			cam_moved = true;
-			frames_still = 0;
 		}
-		else if (active_keys.down) {
+		if (active_keys.down) {
 			position -= up * dist;
 			cam_moved = true;
+		}
+
+		if (cam_moved) {
 			frames_still = 0;
 		}
 		else {
-			cam_moved = false;
 			frames_still++;
 		}
 
@@ -162,31 +172,45 @@ public:
 		}
 	}
 
-	void mouse_event(GLFWwindow* window, double xpos, double ypos)
+	void mouse_move_event(GLFWwindow* window, double xpos, double ypos)
 	{
-		if (first_mouse)
+		if (active_keys.mouse1 && !imgui_io.WantCaptureMouse)
 		{
+			float xoffset = (xpos - lastX);
+			float yoffset = (lastY - ypos);
 			lastX = xpos;
 			lastY = ypos;
-			first_mouse = false;
+
+			pitch += yoffset * sensitivity;
+			yaw += xoffset * sensitivity;
+			if (pitch > 89.9f)
+				pitch = 89.9f;
+			if (pitch < -89.9f)
+				pitch = -89.9f;
+
+			update_vectors();
+
+			need_refresh();
 		}
+	}
 
-		float xoffset = (xpos - lastX);
-		float yoffset = (lastY - ypos);
-		lastX = xpos;
-		lastY = ypos;
-
-		pitch += yoffset * sensitivity;
-		yaw += xoffset * sensitivity;
-		if (pitch > 89.9f)
-			pitch = 89.9f;
-		if (pitch < -89.9f)
-			pitch = -89.9f;
-
-		update_vectors();
-
-		frames_still = 0;
-		cam_moved = true;
+	void mouse_button_event(GLFWwindow* window, int button, int action, int mods)
+	{
+		if (button == GLFW_MOUSE_BUTTON_LEFT)
+		{
+			double xpos, ypos;
+			if (action == GLFW_PRESS)
+			{
+				active_keys.mouse1 = true;
+				glfwGetCursorPos(window, &xpos, &ypos);
+				lastX = xpos;
+				lastY = ypos;
+			}
+			if (action == GLFW_RELEASE)
+			{
+				active_keys.mouse1 = false;
+			}
+		}
 	}
 
 	void update_vectors()
@@ -198,5 +222,11 @@ public:
 		front = normalize(front);
 		right = glm::normalize(glm::cross(front, world_up));
 		up = glm::normalize(glm::cross(right, front));
+	}
+
+	void need_refresh()
+	{
+		frames_still = 0;
+		cam_moved = true;
 	}
 };

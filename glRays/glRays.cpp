@@ -190,7 +190,6 @@ int main()
 			cam.set_camera_speed(options_obj.camera_speed);
 
 			cam.set_delta_time(delta_time);
-			cam.update_movement();
 		}
 
 		// Run compute shader
@@ -223,6 +222,9 @@ int main()
 		// ImGui
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+		// Have to call this after render, otherwise we get ghosting when rotating camera
+		cam.update_movement();
 
 		glfwSwapBuffers(window);
 	}

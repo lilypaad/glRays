@@ -13,7 +13,7 @@ uniform int u_rays_per_pixel;
 
 const float PI = 3.1415926535897932385;
 const float INFINITY = 1.0 / 0.0;
-const int n_spheres = 7;
+const int n_spheres = 10;
 
 struct Ray
 {
@@ -243,7 +243,7 @@ vec3 trace(Ray ray)
 		if(hit.collided)
 		{
 			// Determine if we're doing specular or diffuse reflection
-			//float specular = rand() < hit.material.specular_probability ? 1.0f : 0.0f;
+			float is_specular = rand() < hit.material.specular_probability ? 1.0f : 0.0f;
 
 			// Generate the new bounce ray
 			// Diffuse uses a cosine-weighted random direction in hemisphere
@@ -252,10 +252,11 @@ vec3 trace(Ray ray)
 			vec3 diffuse_ray_dir = random_direction_hemisphere_cos(hit.normal);
 			vec3 specular_ray_dir = reflect(ray.direction, hit.normal);
 			ray.direction = mix(specular_ray_dir, diffuse_ray_dir, hit.material.roughness * hit.material.roughness);
+			ray.direction = mix(diffuse_ray_dir, ray.direction, is_specular);
 
 			vec3 emitted_light = hit.material.emission_colour * hit.material.emission_strength;
 			incoming_light += emitted_light * ray_colour;
-			ray_colour *= hit.material.colour;
+			ray_colour *= mix(hit.material.colour, hit.material.specular_colour, is_specular);
 		}
 		else
 		{

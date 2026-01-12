@@ -13,7 +13,7 @@ uniform int u_rays_per_pixel;
 
 const float PI = 3.1415926535897932385;
 const float INFINITY = 1.0 / 0.0;
-const int n_spheres = 4;
+const int n_spheres = 7;
 
 struct Ray
 {
@@ -29,9 +29,9 @@ struct Material
     float std140padding2;         // offset 28  // align 4   // total 32
     vec3 specular_colour;         // offset 32  // align 16  // total 48
     float std140padding3;         // offset 44  // align 4   // total 48
-    float specular_probability;   // offset 48  // align 4   // total 52
-    float emission_strength;      // offset 52  // align 4   // total 56
-    float smoothness;             // offset 56  // align 4   // total 60
+    float emission_strength;      // offset 48  // align 4   // total 52
+    float specular_probability;   // offset 52  // align 4   // total 56
+    float roughness;             // offset 56  // align 4   // total 60
     float std140padding4;         // offset 60  // align 4   // total 64
 };
 
@@ -68,7 +68,7 @@ layout (std140, binding = 2) uniform scene_buffer
 
 
 /*
-	Begin implementation
+	Utility functions
 */
 
 float rand()
@@ -86,27 +86,30 @@ float rand_gauss()
 	return rho * cos(theta);
 }
 
+// Random direction vector
 vec3 random_direction()
 {
 	return normalize(vec3(rand_gauss(), rand_gauss(), rand_gauss()));
 }
 
-vec3 random_direction_hemisphere(vec3 normal)
+// Random direction vector in hemisphere based on normal, cosine-weighted distribution
+vec3 random_direction_hemisphere_cos(vec3 normal)
 {
-	vec3 dir = random_direction();
-	if(dot(normal, dir) < 0)
-		dir = -dir;
-	return dir;
+	return normalize(normal + random_direction());
 }
+
+/*
+	Ray tracing related functions
+*/
 
 vec3 environment_light(Ray ray)
 {
 	vec3 colour_ground = vec3(0.5, 0.5, 0.5);
 	vec3 colour_sky_horizon = vec3(1.0, 1.0, 1.0);
 	vec3 colour_sky_zenith = vec3(0.5, 0.7, 1.0);
-	vec3 sun_direction = normalize(vec3(2.5, 1, -1));
+	vec3 sun_direction = normalize(vec3(0.5, 1, -1));
 	float sun_focus = 50.0;
-	float sun_intensity = 40.0;
+	float sun_intensity = 20.0;
 
 	float gradient_interp = pow(smoothstep(0.0, 0.4, ray.direction.y), 0.35);
 	float ground_to_sky = smoothstep(-0.01, 0.0, ray.direction.y);
@@ -194,34 +197,35 @@ HitInfo ray_collision(Ray ray)
 	}
 
 	// FIXME -- test tri, iterate this over all mesh info
-	Triangle tri = { 
-		vec3(-1.0, 0.0, -1.0),
-		vec3( 0.0, 2.0,  1.0),
-		vec3( 1.0, 0.0,  1.0),
-		vec3(0,0,0)
-	};
-	vec3 U = tri.b - tri.a;
-	vec3 V = tri.c - tri.a;
-	tri.normal = vec3(
-		U.y * V.z - U.z * V.y,
-		U.z * V.x - U.x * V.z,
-		U.x * V.y - U.y * V.x
-	);
-	Material tempmat = {
-		vec3(1.0, 1.0, 1.0),
-		0.0,
-		vec3(1.0, 1.0, 1.0),
-		0.0,
-		vec3(1.0, 1.0, 1.0),
-		0.0,
-		0.0, 0.0, 0.0, 0.0
-	};
+	// Triangle tri = { 
+	// 	vec3(-2.0, 0.0, -1.0),
+	// 	vec3(-1.0, 2.0,  1.0),
+	// 	vec3( 0.0, 0.0,  1.0),
+	// 	vec3(0,0,0)
+	// };
+	// vec3 U = tri.b - tri.a;
+	// vec3 V = tri.c - tri.a;
+	// tri.normal = vec3(
+	// 	U.y * V.z - U.z * V.y,
+	// 	U.z * V.x - U.x * V.z,
+	// 	U.x * V.y - U.y * V.x
+	// );
+	// Material tempmat = {
+	// 	vec3(1.0, 1.0, 1.0),
+	// 	0.0,
+	// 	vec3(1.0, 1.0, 1.0),
+	// 	0.0,
+	// 	vec3(1.0, 1.0, 1.0),
+	// 	0.0,
+	// 	0.0, 0.0, 0.5, 
+	// 	0.0
+	// };
 
-	HitInfo hittri = hit_triangle(tri, ray);
-	if(hittri.collided && hittri.dist < closest.dist) {
-		closest = hittri;
-		closest.material = tempmat;
-	}
+	// HitInfo hittri = hit_triangle(tri, ray);
+	// if(hittri.collided && hittri.dist < closest.dist) {
+	// 	closest = hittri;
+	// 	closest.material = tempmat;
+	// }
 	// FIXME -- test tri
 
 
@@ -238,16 +242,25 @@ vec3 trace(Ray ray)
 		HitInfo hit = ray_collision(ray);
 		if(hit.collided)
 		{
+			// Determine if we're doing specular or diffuse reflection
+			//float specular = rand() < hit.material.specular_probability ? 1.0f : 0.0f;
+
+			// Generate the new bounce ray
+			// Diffuse uses a cosine-weighted random direction in hemisphere
+			// 100% smooth specular uses a perfect reflection
 			ray.origin = hit.point;
-			ray.direction = normalize(hit.normal + random_direction());
+			vec3 diffuse_ray_dir = random_direction_hemisphere_cos(hit.normal);
+			vec3 specular_ray_dir = reflect(ray.direction, hit.normal);
+			ray.direction = mix(specular_ray_dir, diffuse_ray_dir, hit.material.roughness * hit.material.roughness);
 
 			vec3 emitted_light = hit.material.emission_colour * hit.material.emission_strength;
-			incoming_light += emitted_light * ray_colour ;
+			incoming_light += emitted_light * ray_colour;
 			ray_colour *= hit.material.colour;
 		}
 		else
 		{
-			incoming_light += environment_light(ray) * ray_colour;
+			// Ray didn't hit, use whatever global environment lighting we've defined
+			// incoming_light += environment_light(ray) * ray_colour;
 			break;
 		}
 	}
@@ -302,8 +315,9 @@ void main()
 	total_light = total_light / u_rays_per_pixel;
 
 	float weight = 1.0f / float(u_frame_count + 1);
-	vec3 pixel_col = accumulated_colour.rgb * (1 - weight) + total_light * weight;
+	vec3 pixel_col = mix(accumulated_colour.rgb, total_light, weight);
 	vec4 pixel = vec4(pixel_col, 1.0);
+
 	imageStore(img_output, pix_coords, pixel);
 
 	barrier();

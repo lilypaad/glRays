@@ -270,8 +270,8 @@ void main()
 	// Run-down of the math can be found here:
 	// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-generating-camera-rays/generating-camera-rays.html
 	vec3 pixel_camera = vec3(
-		(2 * ((float(pix_coords.x) + 0.5) / dims.x) - 1) * tan(u_fov / 2 * PI / 180) * aspect_ratio,
-		(2 * ((float(pix_coords.y) + 0.5) / dims.y) - 1) * tan(u_fov / 2 * PI / 180),
+		(2 * ((float(pix_coords.x) + rand()) / dims.x) - 1) * tan(u_fov / 2 * PI / 180) * aspect_ratio,
+		(2 * ((float(pix_coords.y) + rand()) / dims.y) - 1) * tan(u_fov / 2 * PI / 180),
 		-1.0
 	);
 

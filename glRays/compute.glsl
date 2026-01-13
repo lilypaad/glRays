@@ -99,6 +99,18 @@ vec3 random_direction_hemisphere_cos(vec3 normal)
 	return normalize(normal + random_direction());
 }
 
+// Calculate a triangle's normal vector
+vec3 tri_normal(Triangle tri)
+{
+	vec3 U = tri.b - tri.a;
+	vec3 V = tri.c - tri.a;
+	return vec3(
+		U.y * V.z - U.z * V.y,
+		U.z * V.x - U.x * V.z,
+		U.x * V.y - U.y * V.x
+	);
+}
+
 /*
 	Ray tracing related functions
 */
@@ -168,17 +180,6 @@ HitInfo hit_sphere(vec3 centre, float radius, Ray ray)
 		}
 	}
 	return hit;
-}
-
-vec3 tri_normal(Triangle tri)
-{
-	vec3 U = tri.b - tri.a;
-	vec3 V = tri.c - tri.a;
-	return vec3(
-		U.y * V.z - U.z * V.y,
-		U.z * V.x - U.x * V.z,
-		U.x * V.y - U.y * V.x
-	);
 }
 
 HitInfo ray_collision(Ray ray)
@@ -406,6 +407,14 @@ vec3 trace(Ray ray)
 			vec3 emitted_light = hit.material.emission_colour * hit.material.emission_strength;
 			incoming_light += emitted_light * ray_colour;
 			ray_colour *= mix(hit.material.colour, hit.material.specular_colour, is_specular);
+
+			// Russian Roulette -- rays with low brightness have high 
+			// probability to terminate early. Surviving rays are boosted
+			// to compensate for the reduced amount of samples.
+			float p = max(ray_colour.r, max(ray_colour.g, ray_colour.b));
+			if(rand() > p)
+				break;
+			ray_colour *= 1.0f / p;
 		}
 		else
 		{

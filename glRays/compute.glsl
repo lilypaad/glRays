@@ -242,7 +242,7 @@ HitInfo ray_collision(Ray ray)
 		0.0
 	};
 
-	const int n_tris = 12;
+	const int n_tris = 14;
 	Triangle u_tris[n_tris];
 
 	// floor
@@ -345,6 +345,7 @@ HitInfo ray_collision(Ray ray)
 	tri9.normal = tri_normal(tri9);
 	u_tris[9] = tri9;
 
+	// light
 	Triangle tri10 = { 
 		light,
 		vec3( 0.25,  1.99, -0.5),
@@ -363,6 +364,26 @@ HitInfo ray_collision(Ray ray)
 	};
 	tri11.normal = tri_normal(tri11);
 	u_tris[11] = tri11;
+
+	// front wall (typically looking through this wall)
+	Triangle tri12 = { 
+		white_wall,
+		vec3(-1.0,  0.0,  0.0),
+		vec3(-1.0,  2.0,  0.0),
+		vec3( 1.0,  0.0,  0.0),
+		vec3(0,0,0)
+	};
+	tri12.normal = tri_normal(tri12);
+	u_tris[12] = tri12;
+	Triangle tri13 = { 
+		white_wall,
+		vec3(-1.0,  2.0,  0.0),
+		vec3( 1.0,  2.0,  0.0),
+		vec3( 1.0,  0.0,  0.0),
+		vec3(0,0,0)
+	};
+	tri13.normal = tri_normal(tri13);
+	u_tris[13] = tri13;
 
 
 

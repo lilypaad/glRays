@@ -25,7 +25,7 @@ public:
 
 	// Ray training settings
 	int rt_rays_per_pixel = 1;
-	int rt_max_bounces = 8;
+	int rt_max_bounces = 4;
 
 	Options(Camera& camera) : cam(camera) {}
 
@@ -66,10 +66,10 @@ public:
 		ImGui::PopItemWidth();
 
 		ImGui::PushItemWidth(70);
-		if (ImGui::DragFloat("Pitch", &camera_pitch, 0.2f, -50.0f, 50.0f, "%.3f"))
+		if (ImGui::DragFloat("Pitch", &camera_pitch, 0.2f, -50.0f, 50.0f, "%.1f"))
 			camera_moved = true;
 		ImGui::SameLine();
-		if (ImGui::DragFloat("Yaw", &camera_yaw, 0.2f, -50.0f, 50.0f, "%.2f"))
+		if (ImGui::DragFloat("Yaw", &camera_yaw, 0.2f, -50.0f, 50.0f, "%.1f"))
 			camera_moved = true;
 		ImGui::PopItemWidth();
 
@@ -82,10 +82,10 @@ public:
 
 		// Ray tracer settings
 		ImGui::SeparatorText("Ray tracer settings");
-		if (ImGui::SliderInt("Bounce limit", &rt_max_bounces, 0, 32, "%d", ImGuiSliderFlags_AlwaysClamp)) {
+		if (ImGui::SliderInt("Bounce limit", &rt_max_bounces, 0, 16, "%d", ImGuiSliderFlags_AlwaysClamp)) {
 			cam.need_refresh();
 		}
-		if (ImGui::SliderInt("Samples/pixel", &rt_rays_per_pixel, 1, 16, "%d", ImGuiSliderFlags_AlwaysClamp)) {
+		if (ImGui::SliderInt("Samples/pixel", &rt_rays_per_pixel, 1, 8, "%d", ImGuiSliderFlags_AlwaysClamp)) {
 			cam.need_refresh();
 		}
 

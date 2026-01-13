@@ -1,6 +1,6 @@
 #version 430 core
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(rgba32f, binding = 0) uniform image2D img_output;
 
@@ -53,6 +53,7 @@ struct HitInfo
 
 struct Triangle
 {
+	Material material;
 	vec3 a;
 	vec3 b;
 	vec3 c;
@@ -169,6 +170,17 @@ HitInfo hit_sphere(vec3 centre, float radius, Ray ray)
 	return hit;
 }
 
+vec3 tri_normal(Triangle tri)
+{
+	vec3 U = tri.b - tri.a;
+	vec3 V = tri.c - tri.a;
+	return vec3(
+		U.y * V.z - U.z * V.y,
+		U.z * V.x - U.x * V.z,
+		U.x * V.y - U.y * V.x
+	);
+}
+
 HitInfo ray_collision(Ray ray)
 {
 	Material default_colour = { 
@@ -197,35 +209,172 @@ HitInfo ray_collision(Ray ray)
 	}
 
 	// FIXME -- test tri, iterate this over all mesh info
-	// Triangle tri = { 
-	// 	vec3(-2.0, 0.0, -1.0),
-	// 	vec3(-1.0, 2.0,  1.0),
-	// 	vec3( 0.0, 0.0,  1.0),
-	// 	vec3(0,0,0)
-	// };
-	// vec3 U = tri.b - tri.a;
-	// vec3 V = tri.c - tri.a;
-	// tri.normal = vec3(
-	// 	U.y * V.z - U.z * V.y,
-	// 	U.z * V.x - U.x * V.z,
-	// 	U.x * V.y - U.y * V.x
-	// );
-	// Material tempmat = {
-	// 	vec3(1.0, 1.0, 1.0),
-	// 	0.0,
-	// 	vec3(1.0, 1.0, 1.0),
-	// 	0.0,
-	// 	vec3(1.0, 1.0, 1.0),
-	// 	0.0,
-	// 	0.0, 0.0, 0.5, 
-	// 	0.0
-	// };
+	vec3 white = vec3(1.0, 1.0, 1.0);
+	vec3 red = vec3(1.0, 0.0, 0.0);
+	vec3 green = vec3(0.0, 1.0, 0.0);
+	Material white_wall = {
+		white, 0.0,
+		vec3(0.0, 0.0, 0.0), 0.0,
+		white, 0.0,
+		0.0, 0.0, 1.0,
+		0.0
+	};
+	Material red_wall = {
+		red, 0.0,
+		vec3(0.0, 0.0, 0.0), 0.0,
+		red, 0.0,
+		0.0, 0.0, 1.0,
+		0.0
+	};
+	Material green_wall = {
+		green, 0.0,
+		vec3(0.0, 0.0, 0.0), 0.0,
+		green, 0.0,
+		0.0, 0.0, 1.0,
+		0.0
+	};
+	Material light = {
+		white, 0.0,
+		white, 0.0, 
+		white, 0.0,
+		10.0, 0.0, 0.0,
+		0.0
+	};
 
-	// HitInfo hittri = hit_triangle(tri, ray);
-	// if(hittri.collided && hittri.dist < closest.dist) {
-	// 	closest = hittri;
-	// 	closest.material = tempmat;
-	// }
+	const int n_tris = 12;
+	Triangle u_tris[n_tris];
+
+	// floor
+	Triangle tri0 = { 
+		white_wall,
+		vec3(-1.0,  0.0, -2.0),
+		vec3(-1.0,  0.0,  0.0),
+		vec3( 1.0,  0.0,  0.0),
+		vec3(0,0,0)
+	};
+	tri0.normal = tri_normal(tri0);
+	u_tris[0] = tri0;
+	Triangle tri1 = { 
+		white_wall,
+		vec3(-1.0,  0.0, -2.0),
+		vec3( 1.0,  0.0,  0.0),
+		vec3( 1.0,  0.0, -2.0),
+		vec3(0,0,0)
+	};
+	tri1.normal = tri_normal(tri1);
+	u_tris[1] = tri1;
+
+	// left wall
+	Triangle tri2 = { 
+		red_wall,
+		vec3(-1.0,  0.0,  0.0),
+		vec3(-1.0,  0.0, -2.0),
+		vec3(-1.0,  2.0,  0.0),
+		vec3(0,0,0)
+	};
+	tri2.normal = tri_normal(tri2);
+	u_tris[2] = tri2;
+	Triangle tri3 = { 
+		red_wall,
+		vec3(-1.0,  2.0, -2.0),
+		vec3(-1.0,  2.0,  0.0),
+		vec3(-1.0,  0.0, -2.0),
+		vec3(0,0,0)
+	};
+	tri3.normal = tri_normal(tri3);
+	u_tris[3] = tri3;
+
+	// right wall
+	Triangle tri4 = { 
+		green_wall,
+		vec3( 1.0,  0.0, -2.0),
+		vec3( 1.0,  0.0,  0.0),
+		vec3( 1.0,  2.0,  0.0),
+		vec3(0,0,0)
+	};
+	tri4.normal = tri_normal(tri4);
+	u_tris[4] = tri4;
+	Triangle tri5 = { 
+		green_wall,
+		vec3( 1.0,  2.0,  0.0),
+		vec3( 1.0,  2.0, -2.0),
+		vec3( 1.0,  0.0, -2.0),
+		vec3(0,0,0)
+	};
+	tri5.normal = tri_normal(tri5);
+	u_tris[5] = tri5;
+
+	// back wall
+	Triangle tri6 = { 
+		white_wall,
+		vec3(-1.0,  2.0, -2.0),
+		vec3(-1.0,  0.0, -2.0),
+		vec3( 1.0,  0.0, -2.0),
+		vec3(0,0,0)
+	};
+	tri6.normal = tri_normal(tri6);
+	u_tris[6] = tri6;
+	Triangle tri7 = { 
+		white_wall,
+		vec3( 1.0,  2.0, -2.0),
+		vec3(-1.0,  2.0, -2.0),
+		vec3( 1.0,  0.0, -2.0),
+		vec3(0,0,0)
+	};
+	tri7.normal = tri_normal(tri7);
+	u_tris[7] = tri7;
+
+	// ceiling
+	Triangle tri8 = { 
+		white_wall,
+		vec3(-1.0,  2.0,  0.0),
+		vec3(-1.0,  2.0, -2.0),
+		vec3( 1.0,  2.0,  0.0),
+		vec3(0,0,0)
+	};
+	tri8.normal = tri_normal(tri8);
+	u_tris[8] = tri8;
+	Triangle tri9 = { 
+		white_wall,
+		vec3( 1.0,  2.0,  0.0),
+		vec3(-1.0,  2.0, -2.0),
+		vec3( 1.0,  2.0, -2.0),
+		vec3(0,0,0)
+	};
+	tri9.normal = tri_normal(tri9);
+	u_tris[9] = tri9;
+
+	Triangle tri10 = { 
+		light,
+		vec3( 0.25,  1.99, -0.5),
+		vec3(-0.25,  1.99, -1.0),
+		vec3( 0.25,  1.99, -1.0),
+		vec3(0,0,0)
+	};
+	tri10.normal = tri_normal(tri10);
+	u_tris[10] = tri10;
+	Triangle tri11 = { 
+		light,
+		vec3(-0.25,  1.99, -0.5),
+		vec3(-0.25,  1.99, -1.0),
+		vec3( 0.25,  1.99, -0.5),
+		vec3(0,0,0)
+	};
+	tri11.normal = tri_normal(tri11);
+	u_tris[11] = tri11;
+
+
+
+	for (int i = 0; i < n_tris; i++) {
+		Triangle tri = u_tris[i];
+		HitInfo hittri = hit_triangle(tri, ray);
+
+		if (hittri.collided && hittri.dist < closest.dist) {
+			closest = hittri;
+			closest.material = tri.material;
+		}
+	}
+
 	// FIXME -- test tri
 
 

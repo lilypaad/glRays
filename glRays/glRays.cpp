@@ -155,7 +155,7 @@ int main()
 
 	// Set up sphere buffer
 	unsigned int sphere_ubo;
-	SceneData scene_data = defaultScene();
+	SceneData scene_data = cornell_box();
 	glGenBuffers(1, &sphere_ubo);
 	glBindBuffer(GL_UNIFORM_BUFFER, sphere_ubo);
 	glBufferData(GL_UNIFORM_BUFFER, scene_data.size, scene_data.objects, GL_STATIC_DRAW);

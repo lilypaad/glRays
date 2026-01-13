@@ -19,7 +19,7 @@ public:
 
 	// Ray training settings
 	int rt_rays_per_pixel = 1;
-	int rt_max_bounces = 2;
+	int rt_max_bounces = 8;
 
 	Options(Camera& camera) : cam(camera) {}
 

@@ -2,8 +2,6 @@
 
 #include <glm/glm.hpp>
 
-const int NUM_SPHERES = 10;
-
 struct Material
 {
 	glm::vec3 colour;             // offset 0   // align 16  // total 16
@@ -44,7 +42,87 @@ Material reflective(float smooth, float prob=1.0f)
     return m;
 }
 
-SceneData defaultScene() {
+SceneData cornell_box() 
+{
+	const int NUM_SPHERES = 8;
+
+    Sphere* spheres = new Sphere[NUM_SPHERES];
+
+    Sphere sphere0;
+    sphere0.centre = glm::vec3(-0.6f, 1.0f, -1.0f);
+    sphere0.radius = 0.12f;
+    sphere0.material = reflective(0.0f);
+
+    Sphere sphere1;
+    sphere1.centre = glm::vec3(-0.3f, 1.0f, -1.0f);
+    sphere1.radius = 0.12f;
+    sphere1.material = reflective(0.25f);
+
+    Sphere sphere2;
+    sphere2.centre = glm::vec3(0.0f, 1.0f, -1.0f);
+    sphere2.radius = 0.12f;
+    sphere2.material = reflective(0.5f);
+
+    Sphere sphere3;
+    sphere3.centre = glm::vec3(0.3f, 1.0f, -1.0f);
+    sphere3.radius = 0.12f;
+    sphere3.material = reflective(0.75f);
+
+    Sphere sphere4;
+    sphere4.centre = glm::vec3(0.6f, 1.0f, -1.0f);
+    sphere4.radius = 0.12f;
+    sphere4.material = reflective(1.0f);
+
+    Sphere sphere5;
+    sphere5.centre = glm::vec3(-0.7f, 0.29f, -0.7f);
+    sphere5.radius = 0.3f;
+    sphere5.material.colour = glm::vec3(1.0f, 1.0f, 0.6f);
+    sphere5.material.emission_colour = glm::vec3(0.0f, 0.0f, 0.0f);
+    sphere5.material.emission_strength = 0.0f;
+    sphere5.material.specular_colour = glm::vec3(0.9f, 0.9f, 0.9f);
+    sphere5.material.roughness = 0.2f;
+    sphere5.material.specular_probability = 0.1f;
+
+    Sphere sphere6;
+    sphere6.centre = glm::vec3(0.0f, 0.3f, -0.7f);
+    sphere6.radius = 0.3f;
+    sphere6.material.colour = glm::vec3(1.0f, 0.6f, 0.6f);
+    sphere6.material.emission_colour = glm::vec3(0.0f, 0.0f, 0.0f);
+    sphere6.material.emission_strength = 0.0f;
+    sphere6.material.specular_colour = glm::vec3(0.9f, 0.9f, 0.9f);
+    sphere6.material.roughness = 0.2f;
+    sphere6.material.specular_probability = 0.3f;
+
+    Sphere sphere7;
+    sphere7.centre = glm::vec3(0.7f, 0.3f, -0.7f);
+    sphere7.radius = 0.3f;
+    sphere7.material.colour = glm::vec3(0.0f, 0.0f, 1.0f);
+    sphere7.material.emission_colour = glm::vec3(0.0f, 0.0f, 0.0f);
+    sphere7.material.emission_strength = 0.0f;
+    sphere7.material.specular_colour = glm::vec3(1.0f, 0.0f, 0.0f);
+    sphere7.material.roughness = 0.5f;
+    sphere7.material.specular_probability = 0.5f;
+
+    spheres[0] = sphere0;
+    spheres[1] = sphere1;
+    spheres[2] = sphere2;
+    spheres[3] = sphere3;
+    spheres[4] = sphere4;
+    spheres[5] = sphere5;
+    spheres[6] = sphere6;
+    spheres[7] = sphere7;
+
+    SceneData sceneData;
+    sceneData.objects = spheres;
+    sceneData.n_objects = NUM_SPHERES;
+    sceneData.size = sceneData.n_objects * sizeof(Sphere);
+
+	return sceneData;
+}
+
+SceneData default_scene() {
+	const int NUM_SPHERES = 10;
+
     Sphere* spheres = new Sphere[NUM_SPHERES];
 
     Sphere sphere0;

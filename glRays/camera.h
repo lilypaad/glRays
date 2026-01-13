@@ -28,7 +28,6 @@ class Camera
 
 	// Info for input handling
 	float lastX, lastY;
-	float first_mouse = true;
 	ImGuiIO& imgui_io;
 
 	struct {
@@ -43,6 +42,10 @@ class Camera
 
 	bool cam_moved = false;
 	int frames_still = 0; // how many frames the camera has been held still
+
+	float x = 0.0f;
+	float y = 0.0f;
+	float z = 0.0f;
 
 public:
 	Camera(GLFWwindow* window, ImGuiIO& io) : imgui_io(io)
@@ -95,6 +98,9 @@ public:
 	void set_delta_time(float time) { this->delta_time = time; }
 	void set_sensitivity(float sensitivity) { this->sensitivity = sensitivity; }
 	void set_camera_speed(float speed) { this->camera_speed = speed; }
+	void set_position(glm::vec3 position) { this->position = position; }
+	void set_pitch(float pitch) { this->pitch = pitch; }
+	void set_yaw(float yaw) { this->yaw = yaw; }
 
 	void set_fov(float fov) 
 	{ 
@@ -124,11 +130,11 @@ public:
 			cam_moved = true;
 		}
 		if (active_keys.up) {
-			position += up * dist;
+			position += world_up * dist;
 			cam_moved = true;
 		}
 		if (active_keys.down) {
-			position -= up * dist;
+			position -= world_up * dist;
 			cam_moved = true;
 		}
 
@@ -139,7 +145,6 @@ public:
 			frames_still++;
 		}
 
-		update_vectors();
 	}
 
 	void key_event(GLFWwindow* window, int key, int scancode, int action, int mods)

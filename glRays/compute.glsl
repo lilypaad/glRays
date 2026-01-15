@@ -1,6 +1,6 @@
 #version 430 core
 
-layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+layout(local_size_x = 4, local_size_y = 4, local_size_z = 1) in;
 
 layout(rgba32f, binding = 0) uniform image2D img_output;
 
@@ -13,7 +13,7 @@ uniform int u_rays_per_pixel;
 
 const float PI = 3.1415926535897932385;
 const float INFINITY = 1.0 / 0.0;
-const int n_spheres = 10;
+const int n_spheres = 8;
 
 struct Ray
 {
@@ -23,16 +23,18 @@ struct Ray
 
 struct Material
 {
-	vec3 colour;                  // offset 0   // align 16  // total 16
-    float std140padding1;         // offset 12  // align 4   // total 16
-    vec3 emission_colour;         // offset 16  // align 16  // total 32
-    float std140padding2;         // offset 28  // align 4   // total 32
-    vec3 specular_colour;         // offset 32  // align 16  // total 48
-    float std140padding3;         // offset 44  // align 4   // total 48
-    float emission_strength;      // offset 48  // align 4   // total 52
-    float specular_probability;   // offset 52  // align 4   // total 56
-    float roughness;             // offset 56  // align 4   // total 60
-    float std140padding4;         // offset 60  // align 4   // total 64
+	vec3 albedo;
+    float roughness;
+    vec3 emission_colour;
+    float emission_strength;
+    vec3 specular_colour;
+    float specular_chance;
+	vec3 refraction_colour;
+    float refraction_chance;
+	float refraction_roughness;
+    float refractive_idx;
+    float std140padding1;
+    float std140padding2;
 };
 
 struct Sphere
@@ -42,15 +44,6 @@ struct Sphere
 	float radius;
 };
 
-struct HitInfo
-{
-	Material material;
-	vec3 point;
-	vec3 normal;
-	float dist;
-	bool collided;
-};
-
 struct Triangle
 {
 	Material material;
@@ -58,6 +51,16 @@ struct Triangle
 	vec3 b;
 	vec3 c;
 	vec3 normal;
+};
+
+struct HitInfo
+{
+	Material material;
+	vec3 point;
+	vec3 normal;
+	float dist;
+	bool collided;
+	bool from_inside;
 };
 
 unsigned int rng_state = 0;
@@ -111,9 +114,46 @@ vec3 tri_normal(Triangle tri)
 	);
 }
 
+Material default_material()
+{
+    Material m;
+    m.albedo = vec3(0.0f, 0.0f, 0.0f);
+    m.roughness = 0.0f;
+    m.emission_colour = vec3(0.0f, 0.0f, 0.0f);
+    m.emission_strength = 0.0f;
+    m.specular_colour = vec3(0.0f, 0.0f, 0.0f);
+    m.specular_chance = 0.0f;
+    m.refraction_colour = vec3(0.0f, 0.0f, 0.0f);
+    m.refraction_chance = 0.0f;
+    m.refraction_roughness = 0.0f;
+    m.refractive_idx = 1.0f;
+    m.std140padding1 = 0.0f;
+    m.std140padding2 = 0.0f;
+	return m;
+}
+
 /*
 	Ray tracing related functions
 */
+
+// Schlick Fresnel approximation
+float fresnel_reflect_amount(float n1, float n2, vec3 normal, vec3 incident, float f0, float f90)
+{
+	float r0 = (n1 - n2) / (n1 + n2);
+	r0 *= r0;
+	float cos_x = -dot(normal, incident);
+	if(n1 > n2) {
+		float n = n1 / n2;
+		float sin_t2 = n * n * (1.0 - cos_x * cos_x);
+		if(sin_t2 > 1.0)
+			return f90;
+		cos_x = sqrt(1.0 - sin_t2);
+	}
+	float x = 1.0 - cos_x;
+	float ret = r0 + (1.0 - r0) * pow(x, 5.0);
+
+	return mix(f0, f90, ret);
+}
 
 vec3 environment_light(Ray ray)
 {
@@ -159,49 +199,51 @@ HitInfo hit_triangle(Triangle tri, Ray ray)
 	return hit;
 }
 
-HitInfo hit_sphere(vec3 centre, float radius, Ray ray)
+HitInfo hit_sphere(vec3 centre, float radius, float t_min, float t_max, Ray ray)
 {
 	HitInfo hit;
 	hit.collided = false;
+	hit.from_inside = false;
 
-	vec3 oc = ray.origin - centre;
+	vec3 oc = centre - ray.origin;
 	float a = dot(ray.direction, ray.direction);
-	float b = 2 * dot(oc, ray.direction);
+	float h = dot(ray.direction, oc);
 	float c = dot(oc, oc) - radius * radius;
-	float discriminant = b*b - 4*a*c;
 
-	if(discriminant >= 0) {
-		float dst = (-b - sqrt(discriminant)) / (2*a);
-		if (dst >= 0) {
-			hit.collided = true;
-			hit.dist = dst;
-			hit.point = ray.origin + ray.direction * dst;
-			hit.normal = normalize(hit.point - centre);
-		}
+	float discriminant = h * h - a * c;
+
+	if (discriminant < 0.0f)
+		return hit; // missed
+
+	// Try to find a root within interval (t_min, t_max)
+	float root = (h - sqrt(discriminant)) / a ;
+	if (root <= t_min || t_max <= root) {
+		root = (h + sqrt(discriminant)) / a ;
+		if (root <= t_min || t_max <= root)
+			return hit; // outside of acceptable range for t
 	}
+
+	hit.collided = true;
+	hit.dist = root;
+	hit.point = ray.origin + ray.direction * root;
+	hit.normal = (hit.point - centre) / radius;
+	hit.from_inside = dot(ray.direction, hit.normal) > 0.001f;
+	hit.normal = hit.from_inside ? -hit.normal : hit.normal;
+
 	return hit;
 }
 
 HitInfo ray_collision(Ray ray)
 {
-	Material default_colour = { 
-		vec3(0, 0, 0), 
-		0.0, 
-		vec3(0, 0, 0), 
-		0.0, 
-		vec3(0, 0, 0), 
-		0.0, 
-		0.0, 0.0, 0.0, 0.0
-	};
-
 	HitInfo closest;
 	closest.dist = INFINITY;
-	closest.material = default_colour;
+	closest.material = default_material();
 	closest.collided = false;
+	closest.from_inside = false;
 
 	for (int i = 0; i < n_spheres; i++) {
 		Sphere sphere = u_spheres[i];
-		HitInfo hit = hit_sphere(sphere.centre, sphere.radius, ray);
+		HitInfo hit = hit_sphere(sphere.centre, sphere.radius, 0.001f, INFINITY, ray);
 
 		if (hit.collided && hit.dist < closest.dist) {
 			closest = hit;
@@ -213,179 +255,161 @@ HitInfo ray_collision(Ray ray)
 	vec3 white = vec3(1.0, 1.0, 1.0);
 	vec3 red = vec3(1.0, 0.0, 0.0);
 	vec3 green = vec3(0.0, 1.0, 0.0);
-	Material white_wall = {
-		white, 0.0,
-		vec3(0.0, 0.0, 0.0), 0.0,
-		white, 0.0,
-		0.0, 0.0, 1.0,
-		0.0
-	};
-	Material red_wall = {
-		red, 0.0,
-		vec3(0.0, 0.0, 0.0), 0.0,
-		red, 0.0,
-		0.0, 0.0, 1.0,
-		0.0
-	};
-	Material green_wall = {
-		green, 0.0,
-		vec3(0.0, 0.0, 0.0), 0.0,
-		green, 0.0,
-		0.0, 0.0, 1.0,
-		0.0
-	};
-	Material light = {
-		white, 0.0,
-		white, 0.0, 
-		white, 0.0,
-		10.0, 0.0, 0.0,
-		0.0
-	};
+	Material white_wall = default_material();
+	white_wall.albedo = vec3(1.0, 1.0, 1.0);
+	Material red_wall = default_material();
+	red_wall.albedo = vec3(1, 0, 0);
+	Material green_wall = default_material();
+	green_wall.albedo = vec3(0, 1, 0);
+	Material light = default_material();
+	light.albedo = vec3(1, 1, 1);
+	light.emission_colour = vec3(1, 1, 1);
+	light.emission_strength = 10.0;
 
 	const int n_tris = 14;
 	Triangle u_tris[n_tris];
 
-	// floor
-	Triangle tri0 = { 
-		white_wall,
-		vec3(-1.0,  0.0, -2.0),
-		vec3(-1.0,  0.0,  0.0),
-		vec3( 1.0,  0.0,  0.0),
-		vec3(0,0,0)
-	};
-	tri0.normal = tri_normal(tri0);
-	u_tris[0] = tri0;
-	Triangle tri1 = { 
-		white_wall,
-		vec3(-1.0,  0.0, -2.0),
-		vec3( 1.0,  0.0,  0.0),
-		vec3( 1.0,  0.0, -2.0),
-		vec3(0,0,0)
-	};
-	tri1.normal = tri_normal(tri1);
-	u_tris[1] = tri1;
+	{
+		// floor
+		Triangle tri0 = { 
+			white_wall,
+			vec3(-1.0,  0.0, -2.0),
+			vec3(-1.0,  0.0,  0.0),
+			vec3( 1.0,  0.0,  0.0),
+			vec3(0,0,0)
+		};
+		tri0.normal = tri_normal(tri0);
+		u_tris[0] = tri0;
+		Triangle tri1 = { 
+			white_wall,
+			vec3(-1.0,  0.0, -2.0),
+			vec3( 1.0,  0.0,  0.0),
+			vec3( 1.0,  0.0, -2.0),
+			vec3(0,0,0)
+		};
+		tri1.normal = tri_normal(tri1);
+		u_tris[1] = tri1;
 
-	// left wall
-	Triangle tri2 = { 
-		red_wall,
-		vec3(-1.0,  0.0,  0.0),
-		vec3(-1.0,  0.0, -2.0),
-		vec3(-1.0,  2.0,  0.0),
-		vec3(0,0,0)
-	};
-	tri2.normal = tri_normal(tri2);
-	u_tris[2] = tri2;
-	Triangle tri3 = { 
-		red_wall,
-		vec3(-1.0,  2.0, -2.0),
-		vec3(-1.0,  2.0,  0.0),
-		vec3(-1.0,  0.0, -2.0),
-		vec3(0,0,0)
-	};
-	tri3.normal = tri_normal(tri3);
-	u_tris[3] = tri3;
+		// left wall
+		Triangle tri2 = { 
+			red_wall,
+			vec3(-1.0,  0.0,  0.0),
+			vec3(-1.0,  0.0, -2.0),
+			vec3(-1.0,  2.0,  0.0),
+			vec3(0,0,0)
+		};
+		tri2.normal = tri_normal(tri2);
+		u_tris[2] = tri2;
+		Triangle tri3 = { 
+			red_wall,
+			vec3(-1.0,  2.0, -2.0),
+			vec3(-1.0,  2.0,  0.0),
+			vec3(-1.0,  0.0, -2.0),
+			vec3(0,0,0)
+		};
+		tri3.normal = tri_normal(tri3);
+		u_tris[3] = tri3;
 
-	// right wall
-	Triangle tri4 = { 
-		green_wall,
-		vec3( 1.0,  0.0, -2.0),
-		vec3( 1.0,  0.0,  0.0),
-		vec3( 1.0,  2.0,  0.0),
-		vec3(0,0,0)
-	};
-	tri4.normal = tri_normal(tri4);
-	u_tris[4] = tri4;
-	Triangle tri5 = { 
-		green_wall,
-		vec3( 1.0,  2.0,  0.0),
-		vec3( 1.0,  2.0, -2.0),
-		vec3( 1.0,  0.0, -2.0),
-		vec3(0,0,0)
-	};
-	tri5.normal = tri_normal(tri5);
-	u_tris[5] = tri5;
+		// right wall
+		Triangle tri4 = { 
+			green_wall,
+			vec3( 1.0,  0.0, -2.0),
+			vec3( 1.0,  0.0,  0.0),
+			vec3( 1.0,  2.0,  0.0),
+			vec3(0,0,0)
+		};
+		tri4.normal = tri_normal(tri4);
+		u_tris[4] = tri4;
+		Triangle tri5 = { 
+			green_wall,
+			vec3( 1.0,  2.0,  0.0),
+			vec3( 1.0,  2.0, -2.0),
+			vec3( 1.0,  0.0, -2.0),
+			vec3(0,0,0)
+		};
+		tri5.normal = tri_normal(tri5);
+		u_tris[5] = tri5;
 
-	// back wall
-	Triangle tri6 = { 
-		white_wall,
-		vec3(-1.0,  2.0, -2.0),
-		vec3(-1.0,  0.0, -2.0),
-		vec3( 1.0,  0.0, -2.0),
-		vec3(0,0,0)
-	};
-	tri6.normal = tri_normal(tri6);
-	u_tris[6] = tri6;
-	Triangle tri7 = { 
-		white_wall,
-		vec3( 1.0,  2.0, -2.0),
-		vec3(-1.0,  2.0, -2.0),
-		vec3( 1.0,  0.0, -2.0),
-		vec3(0,0,0)
-	};
-	tri7.normal = tri_normal(tri7);
-	u_tris[7] = tri7;
+		// back wall
+		Triangle tri6 = { 
+			white_wall,
+			vec3(-1.0,  2.0, -2.0),
+			vec3(-1.0,  0.0, -2.0),
+			vec3( 1.0,  0.0, -2.0),
+			vec3(0,0,0)
+		};
+		tri6.normal = tri_normal(tri6);
+		u_tris[6] = tri6;
+		Triangle tri7 = { 
+			white_wall,
+			vec3( 1.0,  2.0, -2.0),
+			vec3(-1.0,  2.0, -2.0),
+			vec3( 1.0,  0.0, -2.0),
+			vec3(0,0,0)
+		};
+		tri7.normal = tri_normal(tri7);
+		u_tris[7] = tri7;
 
-	// ceiling
-	Triangle tri8 = { 
-		white_wall,
-		vec3(-1.0,  2.0,  0.0),
-		vec3(-1.0,  2.0, -2.0),
-		vec3( 1.0,  2.0,  0.0),
-		vec3(0,0,0)
-	};
-	tri8.normal = tri_normal(tri8);
-	u_tris[8] = tri8;
-	Triangle tri9 = { 
-		white_wall,
-		vec3( 1.0,  2.0,  0.0),
-		vec3(-1.0,  2.0, -2.0),
-		vec3( 1.0,  2.0, -2.0),
-		vec3(0,0,0)
-	};
-	tri9.normal = tri_normal(tri9);
-	u_tris[9] = tri9;
+		// ceiling
+		Triangle tri8 = { 
+			white_wall,
+			vec3(-1.0,  2.0,  0.0),
+			vec3(-1.0,  2.0, -2.0),
+			vec3( 1.0,  2.0,  0.0),
+			vec3(0,0,0)
+		};
+		tri8.normal = tri_normal(tri8);
+		u_tris[8] = tri8;
+		Triangle tri9 = { 
+			white_wall,
+			vec3( 1.0,  2.0,  0.0),
+			vec3(-1.0,  2.0, -2.0),
+			vec3( 1.0,  2.0, -2.0),
+			vec3(0,0,0)
+		};
+		tri9.normal = tri_normal(tri9);
+		u_tris[9] = tri9;
 
-	// light
-	Triangle tri10 = { 
-		light,
-		vec3( 0.25,  1.99, -0.5),
-		vec3(-0.25,  1.99, -1.0),
-		vec3( 0.25,  1.99, -1.0),
-		vec3(0,0,0)
-	};
-	tri10.normal = tri_normal(tri10);
-	u_tris[10] = tri10;
-	Triangle tri11 = { 
-		light,
-		vec3(-0.25,  1.99, -0.5),
-		vec3(-0.25,  1.99, -1.0),
-		vec3( 0.25,  1.99, -0.5),
-		vec3(0,0,0)
-	};
-	tri11.normal = tri_normal(tri11);
-	u_tris[11] = tri11;
+		// light
+		Triangle tri10 = { 
+			light,
+			vec3( 0.25,  1.99, -0.5),
+			vec3(-0.25,  1.99, -1.0),
+			vec3( 0.25,  1.99, -1.0),
+			vec3(0,0,0)
+		};
+		tri10.normal = tri_normal(tri10);
+		u_tris[10] = tri10;
+		Triangle tri11 = { 
+			light,
+			vec3(-0.25,  1.99, -0.5),
+			vec3(-0.25,  1.99, -1.0),
+			vec3( 0.25,  1.99, -0.5),
+			vec3(0,0,0)
+		};
+		tri11.normal = tri_normal(tri11);
+		u_tris[11] = tri11;
 
-	// front wall (typically looking through this wall)
-	Triangle tri12 = { 
-		white_wall,
-		vec3(-1.0,  0.0,  0.0),
-		vec3(-1.0,  2.0,  0.0),
-		vec3( 1.0,  0.0,  0.0),
-		vec3(0,0,0)
-	};
-	tri12.normal = tri_normal(tri12);
-	u_tris[12] = tri12;
-	Triangle tri13 = { 
-		white_wall,
-		vec3(-1.0,  2.0,  0.0),
-		vec3( 1.0,  2.0,  0.0),
-		vec3( 1.0,  0.0,  0.0),
-		vec3(0,0,0)
-	};
-	tri13.normal = tri_normal(tri13);
-	u_tris[13] = tri13;
-
-
+		// front wall (typically looking through this wall)
+		Triangle tri12 = { 
+			white_wall,
+			vec3(-1.0,  0.0,  0.0),
+			vec3(-1.0,  2.0,  0.0),
+			vec3( 1.0,  0.0,  0.0),
+			vec3(0,0,0)
+		};
+		tri12.normal = tri_normal(tri12);
+		u_tris[12] = tri12;
+		Triangle tri13 = { 
+			white_wall,
+			vec3(-1.0,  2.0,  0.0),
+			vec3( 1.0,  2.0,  0.0),
+			vec3( 1.0,  0.0,  0.0),
+			vec3(0,0,0)
+		};
+		tri13.normal = tri_normal(tri13);
+		u_tris[13] = tri13;
+	}
 
 	for (int i = 0; i < n_tris; i++) {
 		Triangle tri = u_tris[i];
@@ -405,29 +429,77 @@ HitInfo ray_collision(Ray ray)
 
 vec3 trace(Ray ray)
 {
-	vec3 incoming_light = vec3(0.0, 0.0, 0.0);
-	vec3 ray_colour = vec3(1.0, 1.0, 1.0);
+	vec3 incoming_light = vec3(0.0f, 0.0f, 0.0f);
+	vec3 ray_colour = vec3(1.0f, 1.0f, 1.0f);
 
 	for(int i = 0; i <= u_max_bounces; i++)
 	{
 		HitInfo hit = ray_collision(ray);
+
 		if(hit.collided)
 		{
-			// Determine if we're doing specular or diffuse reflection
-			float is_specular = rand() < hit.material.specular_probability ? 1.0f : 0.0f;
+			if (hit.from_inside)
+				ray_colour *= exp(-hit.material.refraction_colour * hit.dist);
+
+			// Fresnel reflections
+			float spec_chance = hit.material.specular_chance;
+			float ref_chance = hit.material.refraction_chance;
+			float diff_chance = max(0.0f, 1.0f - spec_chance - ref_chance);
+			float ray_prob = 1.0f;
+			if (spec_chance > 0.0f) {
+				spec_chance = fresnel_reflect_amount(
+					hit.from_inside ? hit.material.refractive_idx : 1.0,
+					!hit.from_inside ? hit.material.refractive_idx : 1.0,
+					ray.direction, hit.normal, hit.material.specular_chance, 1.0f
+				);
+				float chance_multiplier = (1.0f - spec_chance) / (1.0f - hit.material.specular_chance);
+				ref_chance *= chance_multiplier;
+				diff_chance *= chance_multiplier;
+			}
+
+			// Determine if we're doing specular reflection, diffuse reflection, or refraction
+			float rng_roll = rand();
+			float is_specular = 0.0f;
+			float is_refract = 0.0f;
+
+			if (spec_chance > 0.0f && rng_roll < spec_chance) {
+				is_specular = 1.0f;
+				ray_prob = spec_chance;
+			}
+			else if (ref_chance > 0.0f && rng_roll < spec_chance + ref_chance) {
+				is_refract = 1.0f;
+				ray_prob = ref_chance;
+			}
+			else {
+				ray_prob = 1.0f - spec_chance - ref_chance;
+			}
+			ray_prob = max(ray_prob, 0.001f); // avoid divide by 0
+
+			// Update bounce ray pos based on if this is a refraction or not
+			if (is_refract == 1.0f)
+				ray.origin -= hit.normal * 0.001f;
+			else
+				ray.origin += hit.normal * 0.001f;
 
 			// Generate the new bounce ray
 			// Diffuse uses a cosine-weighted random direction in hemisphere
 			// 100% smooth specular uses a perfect reflection
+			// Rough specular lerps between smooth specular and diffuse
 			ray.origin = hit.point;
 			vec3 diffuse_ray_dir = random_direction_hemisphere_cos(hit.normal);
 			vec3 specular_ray_dir = reflect(ray.direction, hit.normal);
-			ray.direction = mix(specular_ray_dir, diffuse_ray_dir, hit.material.roughness * hit.material.roughness);
-			ray.direction = mix(diffuse_ray_dir, ray.direction, is_specular);
+			float ri = hit.from_inside ? hit.material.refractive_idx : 1.0f / hit.material.refractive_idx;
+			vec3 refract_ray_dir = refract(ray.direction, hit.normal, ri);
+			specular_ray_dir = mix(specular_ray_dir, diffuse_ray_dir, hit.material.roughness * hit.material.roughness);
+			refract_ray_dir = mix(refract_ray_dir, -diffuse_ray_dir, hit.material.refraction_roughness * hit.material.refraction_roughness);
+			ray.direction = mix(diffuse_ray_dir, specular_ray_dir, is_specular);
+			ray.direction = mix(ray.direction, refract_ray_dir, is_refract);
 
 			vec3 emitted_light = hit.material.emission_colour * hit.material.emission_strength;
 			incoming_light += emitted_light * ray_colour;
-			ray_colour *= mix(hit.material.colour, hit.material.specular_colour, is_specular);
+			if (is_refract == 0.0f)
+				ray_colour *= mix(hit.material.albedo, hit.material.specular_colour, is_specular);
+			ray_colour /= ray_prob;
 
 			// Russian Roulette -- rays with low brightness have high 
 			// probability to terminate early. Surviving rays are boosted

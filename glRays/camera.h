@@ -158,7 +158,7 @@ public:
 				case GLFW_KEY_A: active_keys.left = true; break;
 				case GLFW_KEY_D: active_keys.right = true; break;
 				case GLFW_KEY_SPACE: active_keys.up = true; break;
-				case GLFW_KEY_LEFT_CONTROL: active_keys.down = true; break;
+				case GLFW_KEY_C: active_keys.down = true; break;
 				case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(window, GLFW_TRUE); break;
 			}
 		}
@@ -172,7 +172,7 @@ public:
 				case GLFW_KEY_A: active_keys.left = false; break;
 				case GLFW_KEY_D: active_keys.right = false; break;
 				case GLFW_KEY_SPACE: active_keys.up = false; break;
-				case GLFW_KEY_LEFT_CONTROL: active_keys.down = false; break;
+				case GLFW_KEY_C: active_keys.down = false; break;
 			}
 		}
 	}

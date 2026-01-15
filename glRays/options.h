@@ -12,9 +12,9 @@ public:
 	bool other_win_open = true;
 
 	// Camera settings
-	float camera_sensitivity = 1.0;
-	float camera_speed = 10.0;
-	float camera_fov = 70.0;
+	float camera_sensitivity = 0.2;;
+	float camera_speed = 1.0f;
+	float camera_fov = 45.0;;
 	float camera_pos_x = 0.0f;
 	float camera_pos_y = 0.0f;
 	float camera_pos_z = 0.0f;
@@ -38,30 +38,23 @@ public:
 		camera_pitch = cam.get_pitch();
 		camera_yaw = cam.get_yaw();
 
-		ImGui::Begin("Options", &options_win_open, ImGuiWindowFlags_MenuBar);
+		ImGui::Begin("Options", &options_win_open, 0);
+		ImGui::Text("Frame time: %.3fms", delta_time * 1000);
+		ImGui::SameLine();
+		ImGui::Text("    FPS: %.0f", 1.0 / delta_time);
 		ImGui::PushItemWidth(160);
-
-		// Menu bar
-		if (ImGui::BeginMenuBar())
-		{
-			if (ImGui::BeginMenu("File"))
-			{
-				ImGui::EndMenu();
-			}
-			ImGui::EndMenuBar();
-		}
 
 		// Camera settings
 		ImGui::SeparatorText("Camera settings");
 
 		ImGui::PushItemWidth(70);
-		if (ImGui::DragFloat("X", &camera_pos_x, 0.1f, -50.0f, 50.0f, "%.2f"))
+		if (ImGui::DragFloat("X", &camera_pos_x, 0.01f, -50.0f, 50.0f, "%.2f"))
 			camera_moved = true;
 		ImGui::SameLine();
-		if (ImGui::DragFloat("Y", &camera_pos_y, 0.1f, -50.0f, 50.0f, "%.2f"))
+		if (ImGui::DragFloat("Y", &camera_pos_y, 0.01f, -50.0f, 50.0f, "%.2f"))
 			camera_moved = true;
 		ImGui::SameLine();
-		if (ImGui::DragFloat("Z", &camera_pos_z, 0.1f, -50.0f, 50.0f, "%.2f"))
+		if (ImGui::DragFloat("Z", &camera_pos_z, 0.01f, -50.0f, 50.0f, "%.2f"))
 			camera_moved = true;
 		ImGui::PopItemWidth();
 
@@ -78,7 +71,7 @@ public:
 			cam.set_fov(camera_fov);
 		}
 		ImGui::SliderFloat("Sensitivity", &camera_sensitivity, 0.1, 2.0, "%.1f", ImGuiSliderFlags_AlwaysClamp);
-		ImGui::SliderFloat("Camera speed", &camera_speed, 1.0, 50.0, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+		ImGui::SliderFloat("Camera speed", &camera_speed, 0.1, 10.0, "%.1f", ImGuiSliderFlags_AlwaysClamp);
 
 		// Ray tracer settings
 		ImGui::SeparatorText("Ray tracer settings");
@@ -89,13 +82,6 @@ public:
 			cam.need_refresh();
 		}
 
-		ImGui::End();
-
-		ImGui::ShowDemoWindow();
-
-		ImGui::Begin("Metrics window", &other_win_open, ImGuiWindowFlags_NoTitleBar);
-		ImGui::Text("Frame time: %.4fms", delta_time * 1000);
-		ImGui::Text("FPS: %.1f", 1.0 / delta_time);
 		ImGui::End();
 
 		if (camera_moved) {

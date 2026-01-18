@@ -7,6 +7,8 @@ layout(rgba32f, binding = 0) uniform image2D img_output;
 uniform int u_frame_count;
 uniform bool u_camera_moved;
 uniform float u_fov;
+uniform float u_cam_focus_distance;
+uniform float u_cam_defocus_strength;
 uniform mat4 camera_to_world;
 uniform int u_max_bounces;
 uniform int u_rays_per_pixel;
@@ -100,6 +102,19 @@ vec3 random_direction()
 vec3 random_direction_hemisphere_cos(vec3 normal)
 {
 	return normalize(normal + random_direction());
+}
+
+vec3 random_in_unit_disc()
+{
+	float angle = rand() * 2 * PI;
+	vec3 point = vec3(cos(angle), sin(angle), 0.0f);
+	return point * sqrt(rand());
+
+	// while (true) {
+	// 	vec3 p = vec3(rand() * 2 - 1, rand() * 2 - 1, 0);
+	// 	if (dot(p, p) < 1)
+	// 		return p;
+	// }
 }
 
 // Calculate a triangle's normal vector
@@ -525,45 +540,34 @@ void main()
 	ivec2 pix_coords = ivec2(gl_GlobalInvocationID.xy);
 	ivec2 dims = imageSize(img_output);
 
+	// Clear the screen if we need to
+	if(u_camera_moved)
+		imageStore(img_output, pix_coords, vec4(0.0, 0.0, 0.0, 1.0));
+
 	// Initialise rng seed
 	rng_state = (pix_coords.y * dims.x * dims.y + pix_coords.x) + u_frame_count * 719393;
 
 	float aspect_ratio = float(dims.x) / float(dims.y);
-	float fov = 70.0;
-
-	// Translate pixels from raster space -> NDC space -> screen space -> camera space
-	// Run-down of the math can be found here:
-	// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-generating-camera-rays/generating-camera-rays.html
-	vec3 pixel_camera = vec3(
-		(2 * ((float(pix_coords.x) + rand()) / dims.x) - 1) * tan(u_fov / 2 * PI / 180) * aspect_ratio,
-		(2 * ((float(pix_coords.y) + rand()) / dims.y) - 1) * tan(u_fov / 2 * PI / 180),
-		-1.0
-	);
-
-	// Camera space -> world space
-	vec3 ray_origin = vec3(camera_to_world * vec4(0.0, 0.0, 0.0, 1.0));
-	vec3 P_world = vec3(camera_to_world * vec4(pixel_camera, 1.0));
-	vec3 ray_direction = normalize(P_world - ray_origin);
-	Ray r = Ray(ray_origin, ray_direction); 
-	
-	// TEST PATTERN: xy pix coords (bottom left black, top right R+G
-	// vec4 pixel = vec4(pix_coords / vec2(800, 600), 0, 1);
-
-	// TEST PATTERN: ray direction vector -> rgb
-	// vec4 pixel = vec4(ray_direction, 1);
-
-	// TEST PATTERN: gaussian noise
-	// vec4 pixel = vec4(normalize(vec3(rand_gauss(), rand_gauss(), rand_gauss())), 1.0);
-
-	if(u_camera_moved)
-		imageStore(img_output, pix_coords, vec4(0.0, 0.0, 0.0, 1.0));
-
-	vec4 accumulated_colour = imageLoad(img_output, pix_coords);
-
 	vec3 total_light = vec3(0.0);
+	vec4 accumulated_colour = imageLoad(img_output, pix_coords);
+	for (int i = 0; i < u_rays_per_pixel; i++) {
+		// Translate pixels from raster space -> NDC space -> screen space -> camera space
+		// Run-down of the math can be found here:
+		// https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-generating-camera-rays/generating-camera-rays.html
+		vec3 pixel_camera = vec3(
+			(2 * ((float(pix_coords.x) + rand()) / dims.x) - 1) * tan(u_fov / 2 * PI / 180) * aspect_ratio,
+			(2 * ((float(pix_coords.y) + rand()) / dims.y) - 1) * tan(u_fov / 2 * PI / 180),
+			-u_cam_focus_distance
+		);
 
-	for (int i = 0; i < u_rays_per_pixel; i++)
+		// Camera space -> world space
+		vec3 jitter = random_in_unit_disc() * u_cam_defocus_strength;
+		vec3 ray_origin = vec3(camera_to_world * vec4(0.0f, 0.0f, 0.0f, 1.0f)) + jitter;
+		vec3 P_world = vec3(camera_to_world * vec4(pixel_camera, 1.0f));
+		vec3 ray_direction = normalize(P_world - ray_origin);
+		Ray r = Ray(ray_origin, ray_direction);
 		total_light += trace(r);
+	}
 	total_light = total_light / u_rays_per_pixel;
 
 	float weight = 1.0f / float(u_frame_count + 1);

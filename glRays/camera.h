@@ -16,6 +16,8 @@ class Camera
 	float camera_speed = 1.0f;
 	float sensitivity = 1.0f;
 	float fov = 70.0f;
+	float focus_distance = 1.0f;
+	float defocus_strength = 0.0f;
 
 	// Camera vectors
 	glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -69,6 +71,8 @@ public:
 	float get_sensitivity() const { return sensitivity; }
 	float get_camera_speed() const { return camera_speed; }
 	float get_fov() const { return fov; }
+	float get_focus_distance() const { return focus_distance; }
+	float get_defocus_strength() const { return defocus_strength; }
 
 	glm::mat4x4 get_camera_to_world() 
 	{
@@ -101,12 +105,9 @@ public:
 	void set_position(glm::vec3 position) { this->position = position; }
 	void set_pitch(float pitch) { this->pitch = pitch; }
 	void set_yaw(float yaw) { this->yaw = yaw; }
-
-	void set_fov(float fov) 
-	{ 
-		this->fov = fov;
-		need_refresh();
-	}
+	void set_fov(float fov) { this->fov = fov; }
+	void set_focus_distance(float dist) { this->focus_distance = dist; }
+	void set_focus_strength(float str) { this->defocus_strength = str; }
 
 	void update_movement()
 	{

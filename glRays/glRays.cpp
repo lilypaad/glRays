@@ -14,7 +14,7 @@
 #include "scene.h"
 #include "options.h"
 
-const int WIDTH = 1600, HEIGHT = 900;
+const int WIDTH = 800, HEIGHT = 450;
 int window_width, window_height;
 int frame_count = 0;
 float delta_time = 0.0f;
@@ -155,7 +155,7 @@ int main()
 
 	// Set up sphere buffer
 	unsigned int sphere_ubo;
-	SceneData scene_data = cornell_box_glass();
+	SceneData scene_data = cornell_box_metallic();
 	glGenBuffers(1, &sphere_ubo);
 	glBindBuffer(GL_UNIFORM_BUFFER, sphere_ubo);
 	glBufferData(GL_UNIFORM_BUFFER, scene_data.size, scene_data.objects, GL_STATIC_DRAW);
@@ -202,6 +202,8 @@ int main()
 			compute_shader.setInt("u_rays_per_pixel", options_obj.rt_rays_per_pixel);
 			compute_shader.setInt("u_num_spheres", scene_data.n_objects);
 			compute_shader.setMat4("camera_to_world", cam.get_camera_to_world());
+			compute_shader.setFloat("u_cam_focus_distance", cam.get_focus_distance());
+			compute_shader.setFloat("u_cam_defocus_strength", cam.get_defocus_strength());
 			glDispatchCompute((GLuint)tex.width(), (GLuint)tex.height(), 1);
 		}
 

@@ -10,6 +10,7 @@ The application uses OpenGL along with the rather standard set of libraries [GLA
 - [x] Implement standard lighting behaviours
 - [ ] Runtime mesh loading
 - [ ] Use BVH acceleration structure
+- [ ] Denoising filter
 - [ ] Texture mapping
 - [ ] Volume rendering (smoke, fog, etc.)
 - [ ] Utilise DX12/Vulkan ray tracing hardware acceleration (not possible for now as I don't have an RTX card)
